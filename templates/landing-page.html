@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skillify - Intelligent Internship Aggregator</title>
+    <meta name="description"
+        content="Skillify aggregates real-time internship listings and matches them to your skills using AI. Stop searching, start applying.">
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="#" class="logo">Skillify<span class="dot">.</span></a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#about">About</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="/login" class="btn btn-secondary">Log In</a>
+                <a href="/register" class="btn btn-primary">Register</a>
+            </div>
+            <div class="mobile-menu-btn">
+                <i class="fas fa-bars"></i>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="container hero-container">
+            <div class="hero-content">
+
+                <h1>Your Dream Internship, <span class="highlight">Automatically Matched.</span></h1>
+                <p class="hero-text">Stop searching multiple portals. Skillify aggregates listings from LinkedIn,
+                    Naukri, Indeed, and more—tailored specifically to your skills.</p>
+
+
+            </div>
+            <div class="puzzle-container">
+                <div class="puzzle-scene">
+                    <!-- Core User Cube -->
+                    <div class="cube core-cube">
+                        <div class="face front">Cloud</div>
+                        <div class="face back"></div>
+                        <div class="face right"></div>
+                        <div class="face left"></div>
+                        <div class="face top"></div>
+                        <div class="face bottom"></div>
+                        <div class="match-tooltip">70% Match</div>
+                    </div>
+
+                    <!-- Job Fragment 1 (Top) -->
+                    <div class="cube fragment fragment-1">
+                        <div class="face front">Devops</div>
+                        <div class="face back"></div>
+                        <div class="face right"></div>
+                        <div class="face left"></div>
+                        <div class="face top"></div>
+                        <div class="face bottom"></div>
+                        <div class="match-tooltip">98% Match</div>
+                    </div>
+
+                    <!-- Job Fragment 2 (Right) -->
+                    <div class="cube fragment fragment-2">
+                        <div class="face front">AI Ml</div>
+                        <div class="face back"></div>
+                        <div class="face right"></div>
+                        <div class="face left"></div>
+                        <div class="face top"></div>
+                        <div class="face bottom"></div>
+                        <div class="match-tooltip">95% Match</div>
+                    </div>
+
+                    <!-- Job Fragment 3 (Left) -->
+                    <div class="cube fragment fragment-3">
+                        <div class="face front">Developer</div>
+                        <div class="face back"></div>
+                        <div class="face right"></div>
+                        <div class="face left"></div>
+                        <div class="face top"></div>
+                        <div class="face bottom"></div>
+                        <div class="match-tooltip">92% Match</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </header>
+
+
+
+    <!-- Problem Section -->
+    <section class="section problem-section">
+        <div class="container">
+            <div class="section-header text-center">
+                <h2>Why is finding internships so hard?</h2>
+                <p>The old way of searching is broken. We fixed it.</p>
+            </div>
+            <div class="grid-3">
+                <div class="feature-card">
+                    <div class="icon-box icon-red">
+                        <i class="fas fa-search-minus"></i>
+                    </div>
+                    <h3>Fragmentation</h3>
+                    <p>You currently visit 10+ sites daily just to find duplicate listings. We bring them all to one
+                        feed.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon-box icon-yellow">
+                        <i class="fas fa-tired"></i>
+                    </div>
+                    <h3>Irrelevance</h3>
+                    <p>Generic keyword searches return thousands of roles you aren't qualified for. Waste of time.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="icon-box icon-purple">
+                        <i class="fas fa-user-slash"></i>
+                    </div>
+                    <h3>No Feedback</h3>
+                    <p>Applying blindly without knowing if your resume actually matches the job description.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solution/Features Section -->
+    <section class="section features-section" id="features">
+        <div class="container">
+            <div class="section-header text-center">
+                <div class="badge-pill">Features</div>
+                <h2>Everything you need to get hired</h2>
+                <p>Powerful tools to simplify your internship search.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-box box-large">
+                    <div class="feature-content">
+                        <h3><i class="fas fa-globe"></i> Multi-Source Aggregator</h3>
+                        <p>We pull data from the open web using APIs so you never miss an opportunity from LinkedIn,
+                            Indeed, Glassdoor, and more.</p>
+                    </div>
+                    <div class="visual-placeholder agg-visual"></div>
+                </div>
+                <div class="feature-box box-tall">
+                    <div class="feature-content">
+                        <h3><i class="fas fa-file-invoice"></i> Smart Resume Parser</h3>
+                        <p>Upload your PDF resume and our NLP parser automatically builds your Master Profile—no manual
+                            entry required.</p>
+                    </div>
+                    <div class="visual-placeholder parser-visual">
+                        <i class="fas fa-file-pdf"></i>
+                    </div>
+                </div>
+                <div class="feature-box">
+                    <div class="feature-content">
+                        <h3><i class="fas fa-chart-pie"></i> Match & Gap Analysis</h3>
+                        <p>See a visual "Match %" for every job. We explain exactly which skills you have and which ones
+                            you are missing.</p>
+                    </div>
+                </div>
+                <div class="feature-box">
+                    <div class="feature-content">
+                        <h3><i class="fas fa-fire"></i> Trending Skills</h3>
+                        <p>Get live market insights (e.g., "80% of jobs today require React.js") to stay ahead of the
+                            curve.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="section about-section" id="about">
+        <div class="container">
+            <div class="about-grid">
+                <div class="about-content">
+                    <div class="badge-pill">About Us</div>
+                    <h2>Empowering the next generation of talent.</h2>
+                    <p>Skillify was born from a simple frustration: the internship search is broken. We believe every
+                        student deserves a fair shot at their dream career, regardless of their background or
+                        connections.</p>
+                    <p>By leveraging AI to bridge the gap between talent and opportunity, we're building a future where
+                        skills matter more than keywords.</p>
+                </div>
+                <div class="about-values">
+                    <div class="value-card">
+                        <h3>Our Mission</h3>
+                        <p>To democratize career access for university students worldwide.</p>
+                    </div>
+                    <div class="value-card">
+                        <h3>Our Vision</h3>
+                        <p>A world where every skill finds its perfect match, instantly.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="section steps-section" id="how-it-works">
+        <div class="container">
+            <div class="section-header text-center">
+                <h2>How Skillify Works</h2>
+            </div>
+            <div class="steps-container">
+                <div class="step-item">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h3>One-Time Onboarding</h3>
+                        <p>Upload your resume or connect GitHub to create a Master Profile.</p>
+                    </div>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step-item">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h3>Global Aggregation</h3>
+                        <p>We fetch real-time listings based on your domain and location.</p>
+                    </div>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step-item">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h3>Intelligent Matching</h3>
+                        <p>Our AI compares your profile to job descriptions using cosine similarity to rank
+                            opportunities.</p>
+                    </div>
+                </div>
+                <div class="step-connector"></div>
+                <div class="step-item">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h3>Guide & Apply</h3>
+                        <p>Get resume tailoring tips and fill skill gaps before you click apply.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <div class="cta-box">
+                <h2>Ready to launch your career?</h2>
+                <p>Join thousands of students finding their dream internships with Skillify.</p>
+                <div class="cta-buttons">
+                    <a href="#" class="btn btn-white btn-lg">Register</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <a href="#" class="footer-logo">Skillify<span class="dot">.</span></a>
+                    <p>The intelligent internship aggregation platform for students.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>Platform</h4>
+                    <ul>
+                        <li><a href="#">Browse Internships</a></li>
+                        <li><a href="#">Resume Parser</a></li>
+                        <li><a href="#">Skill Trends</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="#">About Us</a></li>
+                        <li><a href="#">Contact</a></li>
+                        <li><a href="#">Privacy Policy</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Connect</h4>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-linkedin"></i></a>
+                        <a href="#"><i class="fab fa-github"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Skillify. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/script.js"></script>
+</body>
+
+</html>

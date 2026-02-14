@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile - Skillify</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="/" class="logo">Skillify<span class="dot">.</span></a>
+            <div class="nav-actions">
+                <span class="user-greeting">Hello, {{ user.fullname }}</span>
+                <a href="/logout" class="btn btn-outline">Log Out</a>
+            </div>
+            <div class="mobile-menu-btn">
+                <i class="fas fa-bars"></i>
+            </div>
+        </div>
+    </nav>
+
+    <div class="profile-container">
+        <!-- Profile Header/Cover -->
+        <div class="profile-header">
+            <div class="profile-cover"></div>
+            <div class="profile-info-wrap container">
+                <div class="profile-avatar-container">
+                    <div class="profile-avatar">
+                        {% if user.profile_pic %}
+                        <img src="{{ user.profile_pic }}" alt="Profile Picture">
+                        {% else %}
+                        <div class="avatar-placeholder">{{ user.fullname[0] | upper }}</div>
+                        {% endif %}
+                        <button class="edit-avatar-btn"><i class="fas fa-camera"></i></button>
+                    </div>
+                </div>
+                <div class="profile-text-header">
+                    <h1>{{ user.fullname }}</h1>
+                    <p class="profile-bio-short">{% if user.bio %}{{ user.bio[:50] }}...{% else %}No bio yet.{% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="container profile-content-grid">
+            <!-- Sidebar: Contact & Skills -->
+            <aside class="profile-sidebar">
+                <div class="card profile-card mb-4">
+                    <h3>Contact Info</h3>
+                    <ul class="contact-list">
+                        <li>
+                            <i class="fas fa-envelope"></i>
+                            <span>{{ user.email }}</span>
+                        </li>
+                        {% if user.phone_number %}
+                        <li>
+                            <i class="fas fa-phone"></i>
+                            <span>{{ user.phone_number }}</span>
+                        </li>
+                        {% else %}
+                        <li class="text-muted">No phone added</li>
+                        {% endif %}
+                    </ul>
+                </div>
+
+                <div class="card profile-card">
+                    <h3>Skills</h3>
+                    <div class="skills-tags">
+                        {% if user.skills %}
+                        {% for skill in user.skills.split(',') %}
+                        <span class="skill-tag">{{ skill.strip() }}</span>
+                        {% endfor %}
+                        {% else %}
+                        <p class="text-muted">No skills added yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Content: Edit Form -->
+            <main class="profile-main">
+                <div class="card profile-card">
+                    <div class="section-header-small">
+                        <h2>Edit Profile</h2>
+                    </div>
+                    {% if success %}
+                    <div class="alert alert-success">{{ success }}</div>
+                    {% endif %}
+                    <form action="/profile" method="POST" class="profile-form">
+                        <div class="form-group">
+                            <label for="fullname">Full Name</label>
+                            <input type="text" id="fullname" name="fullname" value="{{ user.fullname }}" required
+                                class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="phone_number">Phone Number</label>
+                            <input type="text" id="phone_number" name="phone_number"
+                                value="{{ user.phone_number or '' }}" placeholder="+1 234 567 890" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="bio">Bio</label>
+                            <textarea id="bio" name="bio" rows="4" placeholder="Tell us about yourself..."
+                                class="form-control">{{ user.bio or '' }}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="skills">Skills (comma separated)</label>
+                            <input type="text" id="skills" name="skills" value="{{ user.skills or '' }}"
+                                placeholder="Python, React, Design..." class="form-control">
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 Skillify. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+</body>
+
+</html>

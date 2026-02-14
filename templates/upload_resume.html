@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Resume - Skillify</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="/static/script.js" defer></script>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container nav-container"> <a href="/" class="logo">Skillify<span class="dot">.</span></a>
+            <div class="nav-actions"> </div>
+        </div>
+    </nav>
+    <div class="main-content">
+        <div class="container upload-container">
+            <h2>Upload Your Resume</h2>
+            <p class="text-muted">Showcase your professional journey</p> {% if error %} <div class="alert alert-danger"
+                style="color: red; margin-bottom: 15px;">{{ error }}</div> {% endif %} {% if success %} <div
+                class="alert alert-success" style="color: green; margin-bottom: 15px;">{{ success }}</div> {% endif %}
+            <form action="/upload-resume" method="POST" enctype="multipart/form-data">
+                <div class="upload-area" id="upload-area"> <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                    <div class="upload-text">Click to upload or drag and drop</div>
+                    <div class="upload-hint">PDF, DOCX up to 5MB</div> <input type="file" id="file-input" name="resume"
+                        accept=".pdf,.doc,.docx" required>
+                </div>
+                <div class="selected-file" id="selected-file"> <i class="fas fa-file-alt"></i> <span id="file-name">No
+                        file selected</span> </div> <button type="submit" class="btn-upload">Upload Resume</button>
+            </form>
+        </div>
+    </div>
+</body>
