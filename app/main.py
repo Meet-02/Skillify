@@ -14,6 +14,7 @@ from app.core.utils import hash_password, verify_password
 from app.services.resume_parser import extract_text_from_resume
 from app.services.skill_extractor import extract_skills
 from app.routes import auth, match
+from datetime import datetime
 
 # Project root (parent of app/) for static and templates
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -56,30 +57,38 @@ def register_user(
     db: Session = Depends(get_db),
 ):
 
-    existing_email = db.query(Login).filter(Login.email == email).first()
+    from app.models import Login, Users
 
-    if existing_email:
+    # Check email
+    if db.query(Login).filter(Login.email == email).first():
         return templates.TemplateResponse(
             "register.html",
             {"request": request, "error": "Email already registered"},
         )
 
-    existing_username = db.query(Login).filter(Login.username == username).first()
-
-    if existing_username:
-        return templates.TemplateResponse(
-            "register.html",
-            {"request": request, "error": "Username already exists"},
-        )
-
-    user = Login(
+    # Create login record
+    login_user = Login(
         username=username,
         email=email,
         password_hash=hash_password(password),
         created_at=datetime.utcnow()
     )
 
-    db.add(user)
+    db.add(login_user)
+    db.commit()
+    db.refresh(login_user)
+
+    # Create Users record (IMPORTANT)
+    new_user = Users(
+        user_id=login_user.id,
+        name=username,
+        email=email,
+        password_hash=login_user.password_hash,
+        role="student",
+        created_at=datetime.utcnow()
+    )
+
+    db.add(new_user)
     db.commit()
 
     return RedirectResponse("/login", status_code=303)
@@ -119,23 +128,46 @@ def login_user(
 
 @app.get("/logout")
 def logout(request: Request):
+    request.session.clear()
     return RedirectResponse("/login", status_code=303)
 
 
 @app.get("/profile")
 def profile_page(request: Request, db: Session = Depends(get_db)):
-    from app.models import User
+
+    from app.models import Users, UserProfile, UserSkills, Skills
 
     user_id = request.session.get("user_id")
+
     if not user_id:
         return RedirectResponse("/login", status_code=303)
-    user = db.query(User).filter(User.id == user_id).first()
+
+    user = db.query(Users).filter(Users.user_id == user_id).first()
+
     if not user:
         return RedirectResponse("/login", status_code=303)
-    extracted_skills = request.session.get("extracted_skills") or []
+
+    profile = db.query(UserProfile).filter(
+        UserProfile.user_id == user_id
+    ).first()
+
+    user_skills = (
+        db.query(Skills.skill_name)
+        .join(UserSkills, Skills.skill_id == UserSkills.skill_id)
+        .filter(UserSkills.user_id == user_id)
+        .all()
+    )
+
+    skill_list = [s[0] for s in user_skills]
+
     return templates.TemplateResponse(
         "profile.html",
-        {"request": request, "user": user, "extracted_skills": extracted_skills},
+        {
+            "request": request,
+            "user": user,
+            "profile": profile,
+            "skills": skill_list
+        },
     )
 
 
@@ -152,36 +184,62 @@ async def upload_resume(
     resume: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    from app.models import User
+
+    from app.models import Users, UserSkills, Skills
 
     user_id = request.session.get("user_id")
+
     if not user_id:
         return RedirectResponse("/login", status_code=303)
-    user = db.query(User).filter(User.id == user_id).first()
+
+    user = db.query(Users).filter(
+        Users.user_id == user_id
+    ).first()
+
     if not user:
         return RedirectResponse("/login", status_code=303)
 
     upload_dir = static_dir / "resumes"
     upload_dir.mkdir(parents=True, exist_ok=True)
+
     filename = f"{user_id}_{resume.filename}"
     file_path = upload_dir / filename
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(resume.file, buffer)
 
-    # Connect services: extract text and skills
-    try:
-        resume_text = extract_text_from_resume(str(file_path))
-        extracted_skills = extract_skills(resume_text)
-        request.session["extracted_skills"] = [
-            {"skill_name": s["skill_name"], "skill_type": s["skill_type"]}
-            for s in extracted_skills
-        ]
-    except Exception:
-        request.session["extracted_skills"] = []
+    # Extract skills
+    resume_text = extract_text_from_resume(str(file_path))
+    extracted_skills = extract_skills(resume_text)
 
-    user.resume_filename = filename
+    for skill in extracted_skills:
+
+        skill_name = skill["skill_name"]
+
+        # Check skill exists
+        skill_obj = db.query(Skills).filter(
+            Skills.skill_name == skill_name
+        ).first()
+
+        if not skill_obj:
+            skill_obj = Skills(
+                skill_name=skill_name,
+                skill_type=skill["skill_type"]
+            )
+            db.add(skill_obj)
+            db.commit()
+            db.refresh(skill_obj)
+
+        # Save user skill
+        user_skill = UserSkills(
+            user_id=user_id,
+            skill_id=skill_obj.skill_id,
+            proficiency_level="beginner",
+            source="resume"
+        )
+
+        db.add(user_skill)
+
     db.commit()
-    db.refresh(user)
 
     return RedirectResponse("/profile", status_code=303)

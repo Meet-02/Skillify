@@ -21,7 +21,7 @@
         <div class="container nav-container">
             <a href="/" class="logo">Skillify<span class="dot">.</span></a>
             <div class="nav-actions">
-                <span class="user-greeting">Hello, {{ user.fullname }}</span>
+                <span class="user-greeting">Hello, {{ user.name }}</span>
                 <a href="/logout" class="btn btn-outline">Log Out</a>
             </div>
             <div class="mobile-menu-btn">
@@ -40,13 +40,13 @@
                         {% if user.profile_pic %}
                         <img src="{{ user.profile_pic }}" alt="Profile Picture">
                         {% else %}
-                        <div class="avatar-placeholder">{{ user.fullname[0] | upper }}</div>
+                        <div class="avatar-placeholder">{{ user.name[0] | upper }}</div>
                         {% endif %}
                         <button class="edit-avatar-btn"><i class="fas fa-camera"></i></button>
                     </div>
                 </div>
                 <div class="profile-text-header">
-                    <h1>{{ user.fullname }}</h1>
+                    <h1>{{ user.name }}</h1>
                     <p class="profile-bio-short">{% if user.bio %}{{ user.bio[:50] }}...{% else %}No bio yet.{% endif %}
                     </p>
                 </div>
@@ -99,8 +99,8 @@
                     {% endif %}
                     <form action="/profile" method="POST" class="profile-form">
                         <div class="form-group">
-                            <label for="fullname">Full Name</label>
-                            <input type="text" id="fullname" name="fullname" value="{{ user.fullname }}" required
+                            <label for="name">Name</label>
+                            <input type="text" id="name" name="name" value="{{ user.name }}" required
                                 class="form-control">
                         </div>
                         <div class="form-group">
