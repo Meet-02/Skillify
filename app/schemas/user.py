@@ -2,26 +2,17 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 
 
-# -----------------------------
-# Register Schema (Input)
-# -----------------------------
 class UserRegister(BaseModel):
     fullname: str
     email: EmailStr
     password: str
 
 
-# -----------------------------
-# Login Schema (Input)
-# -----------------------------
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
 
-# -----------------------------
-# User Response Schema (Output)
-# -----------------------------
 class UserResponse(BaseModel):
     id: int
     fullname: str
@@ -31,6 +22,7 @@ class UserResponse(BaseModel):
     bio: Optional[str] = None
     skills: Optional[str] = None
 
+
 class UserProfileUpdate(BaseModel):
     fullname: Optional[str] = None
     phone_number: Optional[str] = None
@@ -38,4 +30,4 @@ class UserProfileUpdate(BaseModel):
     skills: Optional[str] = None
 
     class Config:
-        from_attributes = True   # For SQLAlchemy compatibility
+        from_attributes = True
