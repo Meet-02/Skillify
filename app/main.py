@@ -15,7 +15,7 @@ from app.core.utils import hash_password, verify_password
 from app.services.resume_parser import extract_text_from_resume
 from app.services.skill_extractor import extract_skills
 from app.services.match_service import run_matching_pipeline
-from app.services.bio_generator import generate_advanced_bio
+from app.services.bio_generator import generate_bio
 from app.routes import auth, match
 from experiment.alpha_dataset import DATASET as JOB_DATASET
 
@@ -306,11 +306,12 @@ def update_profile(
     if not user:
         return RedirectResponse("/login", status_code=303)
 
-    # Update Users table fields
-    user.phone = phone.strip() if phone and phone.strip() else None
-    user.bio = bio.strip() if bio and bio.strip() else None
+    if phone is not None and phone.strip() != "":
+        user.phone = phone.strip()
 
-    # Get or create UserProfile record
+    if bio is not None and bio.strip() != "":
+        user.bio = bio.strip()
+
     profile = db.query(UserProfile).filter(
         UserProfile.user_id == user_id
     ).first()
@@ -319,15 +320,16 @@ def update_profile(
         profile = UserProfile(user_id=user_id)
         db.add(profile)
 
-    profile.education = education.strip() if education and education.strip() else None
-    profile.experience_level = (
-        experience_level.strip() if experience_level and experience_level.strip() else None
-    )
-    profile.domain_interest = (
-        domain_interest.strip() if domain_interest and domain_interest.strip() else None
-    )
+    if education is not None and education.strip() != "":
+        profile.education = education.strip()
 
-    # Calculate profile completion score
+    if experience_level is not None and experience_level.strip() != "":
+        profile.experience_level = experience_level.strip()
+
+    if domain_interest is not None and domain_interest.strip() != "":
+        profile.domain_interest = domain_interest.strip()
+
+    # Recalculate completion score
     score = 0
     if user.phone:
         score += 20
@@ -393,7 +395,7 @@ async def upload_resume(
         extracted = extract_skills(text)
 
         if not user.bio:
-            auto_bio = generate_advanced_bio(text, extracted)
+            auto_bio = generate_bio(extracted) 
             user.bio = auto_bio
             db.commit()
 

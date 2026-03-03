@@ -1,68 +1,51 @@
-import re
+import google.generativeai as genai
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-ROLE_KEYWORDS = {
-    "Data Scientist": ["machine learning", "data science", "pandas", "numpy", "statistics", "deep learning"],
-    "Backend Developer": ["fastapi", "django", "flask", "api", "node", "backend"],
-    "Frontend Developer": ["react", "javascript", "html", "css", "frontend"],
-    "Full Stack Developer": ["react", "node", "full stack", "mongodb"],
-    "AI Engineer": ["artificial intelligence", "deep learning", "nlp", "computer vision"],
-}
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
+def generate_bio(extracted_skills: list) -> str:
+    """
+    Generates a professional bio using Google Gemini AI.
+    Handles 'extracted_skills' as a list of strings or dictionaries.
+    """
+    # 1. Extract skill names if the list contains dictionaries
+    skills = []
+    for item in extracted_skills:
+        if isinstance(item, dict):
+            skills.append(item.get('skill', ''))
+        else:
+            skills.append(str(item))
+    
+    # Remove empty strings
+    skills = [s for s in skills if s.strip()]
 
-def detect_role(resume_text: str, skills: list):
+    if not skills:
+        return "A dedicated professional committed to continuous learning and growth."
 
-    text = resume_text.lower()
-    skill_names = [s["skill_name"].lower() for s in skills]
+    if not GEMINI_API_KEY:
+        return f"Professional with expertise in: {', '.join(skills)}."
 
-    role_scores = {}
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        skills_str = ", ".join(skills)
+        prompt = (
+            f"Write a short, professional, and engaging 2-sentence professional bio "
+            f"for a person with these skills: {skills_str}. "
+            f"The tone should be modern. Do not use brackets or placeholders."
+        )
 
-    for role, keywords in ROLE_KEYWORDS.items():
-        score = 0
-
-        for keyword in keywords:
-            if keyword in text or keyword in skill_names:
-                score += 1
-
-        role_scores[role] = score
-
-    # Pick highest scoring role
-    best_role = max(role_scores, key=role_scores.get)
-
-    # If no strong match
-    if role_scores[best_role] == 0:
-        return "Technology Professional"
-
-    return best_role
-
-
-def extract_experience_sentence(resume_text: str):
-
-    lines = [l.strip() for l in resume_text.split("\n") if len(l.strip()) > 50]
-
-    if lines:
-        return lines[0][:180]
-
-    return ""
-
-
-def generate_advanced_bio(resume_text: str, skills: list):
-
-    role = detect_role(resume_text, skills)
-
-    top_skills = [s["skill_name"] for s in skills[:5]]
-
-    skills_part = ", ".join(top_skills) if top_skills else "modern technologies"
-
-    experience_part = extract_experience_sentence(resume_text)
-
-    bio = (
-        f"Aspiring {role} skilled in {skills_part}. "
-    )
-
-    if experience_part:
-        bio += f"{experience_part}. "
-
-    bio += "Passionate about building scalable, intelligent, and impactful solutions."
-
-    return bio[:400]
+        response = model.generate_content(prompt)
+        
+        if response and response.text:
+            return response.text.strip()
+        
+    except Exception as e:
+        print(f"Gemini API Error: {e}")
+    
+    return f"Experienced professional specialized in {', '.join(skills)}."

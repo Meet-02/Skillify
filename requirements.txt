@@ -15,3 +15,5 @@ python-dotenv==1.0.1
 
 # Optional but recommended
 pydantic==2.6.4
+
+google-generativeai
