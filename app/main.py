@@ -14,7 +14,10 @@ from app.models import Base, Login
 from app.core.utils import hash_password, verify_password
 from app.services.resume_parser import extract_text_from_resume
 from app.services.skill_extractor import extract_skills
+from app.services.match_service import run_matching_pipeline
+from app.services.bio_generator import generate_advanced_bio
 from app.routes import auth, match
+from experiment.alpha_dataset import DATASET as JOB_DATASET
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -188,14 +191,79 @@ def profile_page(
     ).first()
 
     skills = (
-        db.query(Skills.skill_name)
-        .join(UserSkills,
-              Skills.skill_id == UserSkills.skill_id)
+        db.query(Skills.skill_name, Skills.skill_type)
+        .join(UserSkills, Skills.skill_id == UserSkills.skill_id)
         .filter(UserSkills.user_id == user_id)
         .all()
     )
 
     skill_list = [s[0] for s in skills]
+
+    resume_uploaded = len(skill_list) > 0
+    skills_count = len(skill_list)
+
+    # Try to infer the latest uploaded resume filename for display
+    resume_filename = None
+    if resume_uploaded:
+        upload_dir = static_dir / "resumes"
+        if upload_dir.exists():
+            prefix = f"{user_id}_"
+            user_files = sorted(
+                [
+                    p
+                    for p in upload_dir.iterdir()
+                    if p.is_file() and p.name.startswith(prefix)
+                ],
+                key=lambda p: p.stat().st_mtime,
+            )
+            if user_files:
+                latest_resume = user_files[-1]
+                name_parts = latest_resume.name.split("_", 1)
+                resume_filename = name_parts[1] if len(name_parts) == 2 else latest_resume.name
+
+    matched_services = []
+    no_skills_message = None
+
+    if skill_list:
+        # Build user profile structure expected by the matching pipeline
+        user_profile = {
+            "technical": [],
+            "tools": [],
+            "soft": [],
+        }
+
+        for skill_name, skill_type in skills:
+            key = (skill_type or "").lower()
+            if key in user_profile:
+                user_profile[key].append(skill_name)
+
+        # Fallback: if no types mapped, treat all skills as technical
+        if not any(user_profile.values()):
+            user_profile["technical"] = skill_list
+
+        # We do not persist full resume text; approximate using skills
+        resume_text = " ".join(skill_list)
+
+        for job in JOB_DATASET:
+            result = run_matching_pipeline(
+                user_profile=user_profile,
+                job_profile=job["job_profile"],
+                resume_text=resume_text,
+                job_text=job["job_title"],
+            )
+            matched_services.append(
+                {
+                    "job_title": job["job_title"],
+                    "final_match_score": result["final_match_score"],
+                    "structured_score": result["structured_score"],
+                    "semantic_score": result["semantic_score"],
+                    "gap_severity": result["gap_severity"],
+                }
+            )
+
+        matched_services.sort(key=lambda s: s["final_match_score"], reverse=True)
+    else:
+        no_skills_message = "Upload resume to see recommendations"
 
     return templates.TemplateResponse(
         "profile.html",
@@ -203,9 +271,80 @@ def profile_page(
             "request": request,
             "user": user,
             "profile": profile,
-            "skills": skill_list
+            "skills": skill_list,
+            "skills_count": skills_count,
+            "resume_uploaded": resume_uploaded,
+            "resume_filename": resume_filename,
+            "matched_services": matched_services,
+            "no_skills_message": no_skills_message,
         }
     )
+
+
+@app.post("/profile")
+def update_profile(
+        request: Request,
+        phone: str = Form(None),
+        bio: str = Form(None),
+        education: str = Form(None),
+        experience_level: str = Form(None),
+        domain_interest: str = Form(None),
+        db: Session = Depends(get_db),
+):
+
+    from app.models import Users, UserProfile
+
+    user_id = request.session.get("user_id")
+
+    if not user_id:
+        return RedirectResponse("/login", status_code=303)
+
+    user = db.query(Users).filter(
+        Users.user_id == user_id
+    ).first()
+
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+
+    # Update Users table fields
+    user.phone = phone.strip() if phone and phone.strip() else None
+    user.bio = bio.strip() if bio and bio.strip() else None
+
+    # Get or create UserProfile record
+    profile = db.query(UserProfile).filter(
+        UserProfile.user_id == user_id
+    ).first()
+
+    if not profile:
+        profile = UserProfile(user_id=user_id)
+        db.add(profile)
+
+    profile.education = education.strip() if education and education.strip() else None
+    profile.experience_level = (
+        experience_level.strip() if experience_level and experience_level.strip() else None
+    )
+    profile.domain_interest = (
+        domain_interest.strip() if domain_interest and domain_interest.strip() else None
+    )
+
+    # Calculate profile completion score
+    score = 0
+    if user.phone:
+        score += 20
+    if user.bio:
+        score += 20
+    if profile.education:
+        score += 20
+    if profile.experience_level:
+        score += 20
+    if profile.domain_interest:
+        score += 20
+
+    profile.profile_completion_score = score
+
+    db.commit()
+
+    return RedirectResponse("/profile", status_code=303)
 
 
 @app.get("/upload-resume")
@@ -252,6 +391,11 @@ async def upload_resume(
     try:
         text = extract_text_from_resume(str(file_path))
         extracted = extract_skills(text)
+
+        if not user.bio:
+            auto_bio = generate_advanced_bio(text, extracted)
+            user.bio = auto_bio
+            db.commit()
 
     except Exception as e:
         print("Resume Error:", e)

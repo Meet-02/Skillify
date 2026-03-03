@@ -1466,6 +1466,10 @@ h4 {
     font-weight: 500;
 }
 
+.text-muted {
+    color: var(--text-muted);
+}
+
 /* Form Styles */
 .form-group {
     margin-bottom: 1.5rem;

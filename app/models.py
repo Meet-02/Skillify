@@ -33,6 +33,11 @@ class Users(Base):
 
     created_at = Column(DateTime)
 
+    # Optional profile fields (columns should exist in TiDB)
+    phone = Column(String(50))
+
+    bio = Column(String(500))
+
 
 class UserProfile(Base):
 
