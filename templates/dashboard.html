@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HireFlow - Skills Market Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body class="dashboard-body">
+
+    <!-- Navbar (Simplified for Dashboard) -->
+    <nav class="navbar dashboard-nav">
+        <div class="container nav-container">
+            <a href="/" class="logo">
+                <i style="color: var(--primary);"></i> Skillify<span class="dot">.</span></a>
+            </a>
+            <div class="nav-links">
+                <a href="/">Profile</a>
+                <a href="upload-resume">Resume</a>
+                <a href="#">Recruiter</a>
+                <a href="#" class="active-nav">Skills Market</a>
+            </div>
+            <div class="nav-actions">
+                <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="dashboard-container">
+
+        <!-- Header Section -->
+        <header class="dashboard-header">
+            <h1>Skills Market Dashboard</h1>
+            <p>Track in-demand skills, growth trends, and salary insights across the tech industry.</p>
+        </header>
+
+        <!-- Stats Cards -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon-wrapper icon-blue">
+                    <i class="fas fa-chart-bar"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">Skills Tracked</span>
+                    <strong class="stat-value" id="total-skills-stat">0</strong>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrapper icon-green">
+                    <i class="fas fa-arrow-trend-up"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">Avg Growth</span>
+                    <strong class="stat-value" id="avg-growth-stat">0%</strong>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrapper icon-teal">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">Avg Salary</span>
+                    <strong class="stat-value" id="avg-salary-stat">$0k</strong>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrapper icon-indigo">
+                    <i class="fas fa-suitcase"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">Total Jobs</span>
+                    <strong class="stat-value" id="total-jobs-stat">0</strong>
+                </div>
+            </div>
+        </section>
+
+        <!-- Filters -->
+        <section class="filters-section">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="frontend">Frontend</button>
+            <button class="filter-btn" data-filter="backend">Backend</button>
+            <button class="filter-btn" data-filter="devops">DevOps</button>
+            <button class="filter-btn" data-filter="cloud">Cloud</button>
+            <button class="filter-btn" data-filter="ai-ml">AI/ML</button>
+            <button class="filter-btn" data-filter="data">Data</button>
+            <button class="filter-btn" data-filter="design">Design</button>
+            <button class="filter-btn" data-filter="systems">Systems</button>
+        </section>
+
+        <!-- Main Charts Area -->
+        <div class="charts-grid">
+
+            <!-- Main Bar Chart -->
+            <div class="chart-card large-chart">
+                <div class="card-header-clean">
+                    <h3>Skill Demand Index</h3>
+                </div>
+                <div class="chart-body">
+                    <div class="bar-chart-container" id="skillDemandChart">
+                        <!-- Bars injected via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Side List: Fastest Growing -->
+            <div class="chart-card">
+                <div class="card-header-clean">
+                    <h3><i class="fas fa-arrow-trend-up" style="color: var(--accent);"></i> Fastest Growing</h3>
+                </div>
+                <div class="chart-body">
+                    <div class="growth-list" id="fastestGrowingList">
+                        <!-- List Items injected via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Table Section -->
+        <section class="table-section">
+            <div class="chart-card">
+                <div class="card-header-clean">
+                    <h3>All Skills Overview</h3>
+                </div>
+                <div class="table-responsive">
+                    <table class="skills-table">
+                        <thead>
+                            <tr>
+                                <th>Skill</th>
+                                <th>Category</th>
+                                <th>Demand</th>
+                                <th>Growth</th>
+                                <th>Avg Salary</th>
+                                <th>Jobs</th>
+                            </tr>
+                        </thead>
+                        <tbody id="skillsTableBody">
+                            <!-- Rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="/static/script.js"></script>
+</body>
+
+</html>
