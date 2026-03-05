@@ -1631,3 +1631,65 @@ body {
 .btn-upload:hover {
     background-color: #4338ca;
 }
+
+.resume-upload-form {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Upload Box */
+.file-upload-box {
+    position: relative;
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #f8fafc;
+}
+
+.file-upload-box:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.file-upload-box input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* Icons */
+.upload-icon {
+    font-size: 28px;
+    color: #3b82f6;
+    margin-bottom: 10px;
+}
+
+.upload-text {
+    display: block;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.upload-subtext {
+    display: block;
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 5px;
+}
+
+/* Button */
+.upload-btn {
+    width: 100%;
+    padding: 10px 0;
+    font-weight: 600;
+}
+
+.small-text {
+    font-size: 13px;
+}

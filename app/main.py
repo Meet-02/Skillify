@@ -329,7 +329,7 @@ def update_profile(
     if domain_interest is not None and domain_interest.strip() != "":
         profile.domain_interest = domain_interest.strip()
 
-    # Recalculate completion score
+
     score = 0
     if user.phone:
         score += 20
@@ -385,7 +385,7 @@ async def upload_resume(
     upload_dir = static_dir / "resumes"
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    file_path = upload_dir / f"{user_id}_{resume.filename}"
+    file_path = upload_dir / f"{user_id}_resume.pdf"
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(resume.file, buffer)
@@ -394,10 +394,16 @@ async def upload_resume(
         text = extract_text_from_resume(str(file_path))
         extracted = extract_skills(text)
 
-        if not user.bio:
-            auto_bio = generate_bio(extracted) 
-            user.bio = auto_bio
-            db.commit()
+        user.resume_filename = f"{user_id}_resume.pdf"
+
+        user.resume_uploaded = True
+
+        if not user.bio or not user.bio.strip():
+            generated_bio = generate_bio(extracted)
+            if generated_bio:
+                user.bio = generated_bio.strip()
+
+        db.commit()
 
     except Exception as e:
         print("Resume Error:", e)
@@ -409,8 +415,16 @@ async def upload_resume(
             }
         )
 
+    db.query(UserSkills).filter(
+        UserSkills.user_id == user_id,
+        UserSkills.source == "resume"
+    ).delete()
+
+    db.commit()
+
     for skill in extracted:
         skill_name = skill["skill_name"]
+
         skill_obj = db.query(Skills).filter(
             Skills.skill_name == skill_name
         ).first()
@@ -430,6 +444,9 @@ async def upload_resume(
             proficiency_level="beginner",
             source="resume"
         )
-        db.merge(user_skill)
+
+        db.add(user_skill)
+
     db.commit()
+
     return RedirectResponse("/profile", status_code=303)

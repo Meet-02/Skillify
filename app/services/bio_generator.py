@@ -1,51 +1,70 @@
-import google.generativeai as genai
+from google import genai
+from google.genai import types # Added for advanced config
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+# Initialize the Client with specific API version options
+client = None
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+    client = genai.Client(
+        api_key=GEMINI_API_KEY,
+        http_options={'api_version': 'v1beta'} # Explicitly set version
+    )
 
 def generate_bio(extracted_skills: list) -> str:
     """
-    Generates a professional bio using Google Gemini AI.
-    Handles 'extracted_skills' as a list of strings or dictionaries.
+    Generates a professional bio using the NEW Google GenAI SDK.
     """
-    # 1. Extract skill names if the list contains dictionaries
+    # Clean and extract skill names
     skills = []
     for item in extracted_skills:
         if isinstance(item, dict):
-            skills.append(item.get('skill', ''))
+            name = item.get('skill_name') or item.get('skill')
+            if name: skills.append(name)
         else:
             skills.append(str(item))
     
-    # Remove empty strings
     skills = [s for s in skills if s.strip()]
 
     if not skills:
         return "A dedicated professional committed to continuous learning and growth."
 
-    if not GEMINI_API_KEY:
+    if not client:
         return f"Professional with expertise in: {', '.join(skills)}."
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
         skills_str = ", ".join(skills)
-        prompt = (
-            f"Write a short, professional, and engaging 2-sentence professional bio "
-            f"for a person with these skills: {skills_str}. "
-            f"The tone should be modern. Do not use brackets or placeholders."
-        )
+        prompt = f"""
+        Write a professional LinkedIn-style bio in 2 sentences.
 
-        response = model.generate_content(prompt)
+        Skills: {skills_str}
+
+        Make the person sound ambitious and career-oriented.
+        Avoid generic phrases like "dedicated professional".
+        """
+
+        # Try using the specific model ID
+        response = client.models.generate_content(
+            model="gemini-1.5-flash", 
+            contents=prompt
+        )
         
         if response and response.text:
             return response.text.strip()
         
     except Exception as e:
         print(f"Gemini API Error: {e}")
+        # If gemini-1.5-flash fails again, try the older naming convention as a backup
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=prompt
+            )
+            return response.text.strip()
+        except:
+            pass
     
     return f"Experienced professional specialized in {', '.join(skills)}."

@@ -77,12 +77,40 @@
                     <!-- Section 3 — Resume Information -->
                     <div class="profile-card">
                         <h3>Resume Information</h3>
+
                         {% if resume_uploaded %}
-                        <p><strong>Filename:</strong> {{ resume_filename or 'Uploaded resume' }}</p>
+                        <p><strong>Filename:</strong> {{ resume_filename }}</p>
                         <p><strong>Skills Extracted:</strong> {{ skills_count }}</p>
+                        <p class="text-success small-text">
+                            Upload a new resume to refresh your skills & recommendations.
+                        </p>
                         {% else %}
                         <p class="text-muted">No resume uploaded yet</p>
                         {% endif %}
+
+                        <form action="/upload-resume" method="POST" enctype="multipart/form-data"
+                            class="resume-upload-form">
+
+                            <label class="file-upload-box">
+                                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                <span class="upload-text">
+                                    Click to upload or drag & drop your resume
+                                </span>
+                                <span class="upload-subtext">
+                                    PDF, DOC, DOCX (Max 5MB)
+                                </span>
+                                <input type="file" name="resume" accept=".pdf,.doc,.docx" required>
+                            </label>
+
+                            <button type="submit" class="btn btn-primary upload-btn">
+                                {% if resume_uploaded %}
+                                Replace Resume
+                                {% else %}
+                                Upload Resume
+                                {% endif %}
+                            </button>
+
+                        </form>
                     </div>
                 </aside>
 
@@ -149,17 +177,17 @@
                                 <label for="experience_level">Experience Level</label>
                                 <select id="experience_level" name="experience_level" class="form-control">
                                     <option value="">Select experience level</option>
-                                    <option value="Beginner"
-                                        {% if profile and profile.experience_level=='Beginner' %}selected{% endif %}>
+                                    <option value="Beginner" {% if profile and profile.experience_level=='Beginner'
+                                        %}selected{% endif %}>
                                         Beginner</option>
-                                    <option value="Intermediate"
-                                        {% if profile and profile.experience_level=='Intermediate' %}selected{% endif %}>
+                                    <option value="Intermediate" {% if profile and
+                                        profile.experience_level=='Intermediate' %}selected{% endif %}>
                                         Intermediate</option>
-                                    <option value="Advanced"
-                                        {% if profile and profile.experience_level=='Advanced' %}selected{% endif %}>
+                                    <option value="Advanced" {% if profile and profile.experience_level=='Advanced'
+                                        %}selected{% endif %}>
                                         Advanced</option>
-                                    <option value="Expert"
-                                        {% if profile and profile.experience_level=='Expert' %}selected{% endif %}>
+                                    <option value="Expert" {% if profile and profile.experience_level=='Expert'
+                                        %}selected{% endif %}>
                                         Expert</option>
                                 </select>
                             </div>
