@@ -1638,13 +1638,12 @@ body {
 }
 
 .dashboard-container {
-    max-width: 1400px;
-    /* Wider for dashboard view */
-    margin: 80px auto 0;
-    /* Clear fixed navbar */
-    padding: 2rem;
+    width: 100%;
+    max-width: none;
+    margin-top: 80px;
+    padding: 2rem 4rem;
 }
-
+.nav-container
 /* Dashboard Navigation Overrides */
 .dashboard-nav .nav-links a.active-nav {
     color: var(--primary);
@@ -2072,11 +2071,6 @@ body {
 }
 
 /* Upload Resume Styles */
-body {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-}
 
 .upload-container {
     max-width: 600px;
