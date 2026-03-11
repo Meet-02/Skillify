@@ -18,6 +18,7 @@ from app.services.resume_parser import extract_text_from_resume
 from app.services.skill_extractor import extract_skills
 from app.services.match_service import run_matching_pipeline
 from app.services.bio_generator import generate_bio
+from app.services.resume_tips import generate_resume_tips
 from app.routes import auth, match
 from experiment.alpha_dataset import DATASET as JOB_DATASET
 
@@ -288,6 +289,7 @@ def profile_page(
             "resume_filename": resume_filename,
             "matched_services": matched_services,
             "no_skills_message": no_skills_message,
+            "resume_tips": request.session.get("resume_tips", []),
         }
     )
 
@@ -356,6 +358,26 @@ def update_profile(
     profile.profile_completion_score = score
 
     db.commit()
+
+    # Refresh tips with updated profile context
+    try:
+        from app.models import UserSkills, Skills
+        skills_raw = (
+            db.query(Skills.skill_name, Skills.skill_type)
+            .join(UserSkills, Skills.skill_id == UserSkills.skill_id)
+            .filter(UserSkills.user_id == user_id)
+            .all()
+        )
+        skill_list = [{"skill_name": s[0], "skill_type": s[1]} for s in skills_raw]
+        if skill_list:
+            profile_ctx = {
+                "experience_level": profile.experience_level,
+                "domain_interest": profile.domain_interest,
+            }
+            tips = generate_resume_tips(skill_list, profile_ctx)
+            request.session["resume_tips"] = tips
+    except Exception as e:
+        print(f"Tips refresh error: {e}")
 
     return RedirectResponse("/profile", status_code=303)
 
@@ -459,6 +481,13 @@ async def upload_resume(
         db.add(user_skill)
 
     db.commit()
+
+    # Generate resume enhancement tips via HuggingFace API
+    try:
+        tips = generate_resume_tips(extracted)
+        request.session["resume_tips"] = tips
+    except Exception as e:
+        print(f"Tips generation error: {e}")
 
     return RedirectResponse("/profile", status_code=303)
 

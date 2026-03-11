@@ -227,6 +227,21 @@
                         <p class="text-muted">No recommendations available yet.</p>
                         {% endif %}
                     </div>
+
+                    <!-- AI Resume Enhancement Tips -->
+                    {% if resume_tips and resume_tips|length > 0 %}
+                    <div class="profile-card" id="resume-tips-card" style="border-left: 4px solid #6c63ff;">
+                        <h3>✨ AI Resume Enhancement Tips</h3>
+                        <p class="text-muted" style="margin-bottom: 1rem; font-size: 0.875rem;">
+                            Personalized suggestions based on your skills and profile — powered by AI.
+                        </p>
+                        <ul style="padding-left: 1.2rem; line-height: 1.8;">
+                            {% for tip in resume_tips %}
+                            <li style="margin-bottom: 0.5rem;">{{ tip }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
                 </main>
             </div>
         </div>
