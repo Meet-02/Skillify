@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HireFlow - Find Internships</title>
+    <link rel="stylesheet" href="../static/style.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body class="dashboard-body">
+
+    <!-- Navbar -->
+    <nav class="navbar dashboard-nav">
+        <div class="container nav-container">
+            <a href="/" class="logo">
+                <i style="color: var(--primary);"></i> Skillify<span class="dot">.</span></a>
+            </a>
+            <div class="nav-links">
+                <a href="upload-resume">Resume</a>
+                <a href="/internships" class="active-nav">Internships</a>
+                <a href="/dashboard">Skills Market</a>
+            </div>
+            <div class="nav-actions">
+                <a href="/profile" class="profile-icon-link" aria-label="Profile"
+                    style="display: flex; flex-direction: column; align-items: center; color: var(--text-main); transition: color 0.2s; text-decoration: none;"
+                    onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-main)'">
+                    <i class="fas fa-user-circle" style="font-size: 1.5rem;"></i>
+                    <span style="font-size: 0.75rem; font-weight: 600; margin-top: 2px;">Profile</span>
+                </a>
+                <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="dashboard-container internships-container">
+
+        <header class="dashboard-header" style="text-align: center; margin-bottom: 2rem;">
+            <h1>Available Internships</h1>
+            <p>Discover top opportunities to launch your career.</p>
+        </header>
+
+        <div class="internships-actions" style="text-align: center; margin-bottom: 3rem;">
+            <a href="/internship_list" id="nav-internship-list-btn" class="btn btn-primary btn-lg"
+                style="display: inline-block; text-decoration: none;">
+                <i class="fas fa-search"></i> Find Internship
+            </a>
+        </div>
+
+    </main>
+
+    <script src="../static/script.js"></script>
+</body>
+
+</html>

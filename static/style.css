@@ -1638,12 +1638,13 @@ body {
 }
 
 .dashboard-container {
-    width: 100%;
-    max-width: none;
-    margin-top: 80px;
-    padding: 2rem 4rem;
+    max-width: 1400px;
+    /* Wider for dashboard view */
+    margin: 80px auto 0;
+    /* Clear fixed navbar */
+    padding: 2rem;
 }
-.nav-container
+
 /* Dashboard Navigation Overrides */
 .dashboard-nav .nav-links a.active-nav {
     color: var(--primary);
@@ -2071,6 +2072,11 @@ body {
 }
 
 /* Upload Resume Styles */
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
 
 .upload-container {
     max-width: 600px;
@@ -2223,6 +2229,209 @@ body {
     font-weight: 600;
 }
 
-.small-text {
-    font-size: 13px;
+/* ========================================= */
+/* INTERNSHIPS PAGE STYLES */
+/* ========================================= */
+
+/* Mobile Menu Button */
+.mobile-menu-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: none;
+    /* Hide on desktop */
+}
+
+@media (max-width: 768px) {
+    .nav-links {
+        display: none;
+    }
+
+    .mobile-menu-btn {
+        display: block;
+    }
+}
+
+/* Main Container */
+.internships-container {
+    max-width: 800px;
+    margin: 100px auto 0;
+    /* Adjusted for fixed navbar */
+    padding: 2rem 1rem;
+}
+
+/* Header */
+.list-header {
+    max-width: 700px;
+    margin: 0 auto 1.5rem auto;
+    text-align: left;
+}
+
+.list-header h1 {
+    font-size: 1.25rem;
+    color: #232d3f;
+    font-weight: 700;
+    margin: 0;
+}
+
+/* Profile List */
+.profileList {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+/* Recruiter Profile Card */
+.recruiter-profile-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    padding: 24px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-family: inherit;
+    text-align: left;
+}
+
+.rp-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.rp-title-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.rp-role {
+    color: #1f2937;
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.rp-company-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.rp-company-name {
+    color: #6b7280;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.rp-badge-hiring {
+    background: #eff6ff;
+    color: #3b82f6;
+    border: 1px solid #bfdbfe;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+}
+
+.rp-logo {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+
+.rp-details-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    color: #4b5563;
+    font-size: 0.9rem;
+    margin-top: 4px;
+}
+
+.rp-detail-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.rp-detail-item i {
+    color: #9ca3af;
+    font-size: 0.85rem;
+}
+
+.rp-desc {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: #4b5563;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.rp-desc i {
+    color: #9ca3af;
+    margin-top: 3px;
+    font-size: 0.85rem;
+}
+
+.rp-skills {
+    color: #6b7280;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.rp-dot {
+    margin: 0 6px;
+    color: #d1d5db;
+}
+
+.rp-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.rp-posted {
+    background: #f3f4f6;
+    color: #4b5563;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.rp-posted i {
+    color: #6b7280;
+    font-size: 0.75rem;
+}
+
+.rp-ppo {
+    background: #fffbeb;
+    color: #b45309;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HireFlow - Internship List</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            /* Light slate gray background to match image */
+            padding: 2rem 1rem;
+            color: #333;
+        }
+
+        .list-header {
+            max-width: 700px;
+            margin: 0 auto 1.5rem auto;
+            text-align: left;
+            padding-left: 1.5rem;
+            /* Align header with feed indent */
+        }
+
+        .list-header h1 {
+            font-size: 1.25rem;
+            color: #232d3f;
+            font-weight: 700;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body class="dashboard-body">
+
+    <nav class="navbar dashboard-nav">
+        <div class="container nav-container">
+            <a href="/" class="logo">
+                Skillify<span class="dot">.</span>
+            </a>
+            <div class="nav-links">
+                <a href="upload-resume">Resume</a>
+                <a href="/internships" class="active-nav">Internships</a>
+                <a href="/dashboard">Skills Market</a>
+            </div>
+            <div class="nav-actions">
+                <a href="/profile" class="profile-icon-link" aria-label="Profile"
+                    style="display: flex; flex-direction: column; align-items: center; color: var(--text-main); transition: color 0.2s; text-decoration: none;"
+                    onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-main)'">
+                    <i class="fas fa-user-circle" style="font-size: 1.5rem;"></i>
+                    <span style="font-size: 0.75rem; font-weight: 600; margin-top: 2px;">Profile</span>
+                </a>
+                <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="dashboard-container internships-container">
+        <div class="list-header">
+            <h1>Recruiter Profiles:</h1>
+        </div>
+
+        <div id="profileList" class="profileList">
+        </div>
+    </main>
+    <script src="../static/script.js"></script>

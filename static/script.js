@@ -89,9 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const avgSalaryEl = document.getElementById('avg-salary-stat');
     const totalJobsEl = document.getElementById('total-jobs-stat');
 
-    // Return if not on dashboard page
-    if (!chartContainer || !tableBody) return;
-
     // --- 1. FETCH & INITIALIZE ---
     async function initDashboard() {
         try {
@@ -311,7 +308,106 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatsCards(filteredData);
         });
     }
+    // --- RECRUITER PROFILES LOGIC ---
+    const btnFindInternships = document.getElementById('find-internships-btn');
+    const profileList = document.getElementById('profileList');
 
-    // Start
-    initDashboard();
+    if (profileList) {
+        // Auto-load immediately
+        loadMockInternships();
+
+        // Wait for click if on the page with the button
+        if (btnFindInternships) {
+            btnFindInternships.addEventListener('click', () => {
+                btnFindInternships.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                btnFindInternships.disabled = true;
+            });
+        }
+    }
+
+    function loadMockInternships() {
+        const mockData = [
+            {
+                role: "Supply Chain & Logistics Operations",
+                company: "Oneworld Logistics Private Limited (Abhilaya)",
+                activelyHiring: true,
+                logo: "https://logo.clearbit.com/oneworldlogistics.in",
+                location: "Mumbai",
+                stipend: "₹ 12,000 - 15,000 /month",
+                duration: "3 Months",
+                desc: "Coordinate shipments and vendors, process orders, and maintain accurate logistics documentation",
+                skills: ["MS-Excel", "Effective Communication"],
+                posted: "3 weeks ago",
+                ppoOffer: null
+            },
+            {
+                role: "Digital Ad Sales & Business Development",
+                company: "Ventes Avenues",
+                activelyHiring: true,
+                logo: "https://logo.clearbit.com/ventesavenues.com",
+                location: "Gurgaon, Mumbai, Bangalore",
+                stipend: "₹ 14,999 - 15,000 /month",
+                duration: "6 Months",
+                desc: "Generate leads, pitch digital marketing solutions, and handle client outreach via calls, emails, and...",
+                skills: ["Presentation skills", "Client Interaction", "Digital Advertising", "Sales Management", "Business Development", "Interpersonal skills", "Effective Communication"],
+                posted: "1 week ago",
+                ppoOffer: "Job offer starting ₹ 3LPA post internship"
+            }
+        ];
+
+        profileList.innerHTML = '';
+
+        mockData.forEach(intern => {
+            const card = document.createElement('div');
+            card.className = 'recruiter-profile-card';
+
+            const ppoHtml = intern.ppoOffer ? `<span class="rp-ppo"><i class="fas fa-briefcase"></i> ${intern.ppoOffer}</span>` : '';
+            const hiringBadge = intern.activelyHiring ? `<span class="rp-badge-hiring">Actively hiring</span>` : '';
+
+            card.innerHTML = `
+                <div class="rp-header">
+                    <div class="rp-title-section">
+                        <h3 class="rp-role">${intern.role}</h3>
+                        <div class="rp-company-info">
+                            <span class="rp-company-name">${intern.company}</span>
+                            ${hiringBadge}
+                        </div>
+                    </div>
+                    <img src="${intern.logo}" alt="Logo" class="rp-logo" onerror="this.style.display='none'">
+                </div>
+
+                <div class="rp-details-row">
+                    <div class="rp-detail-item"><i class="fas fa-location-dot"></i> ${intern.location}</div>
+                    <div class="rp-detail-item"><i class="fas fa-money-bill-wave"></i> ${intern.stipend}</div>
+                    <div class="rp-detail-item"><i class="far fa-calendar-alt"></i> ${intern.duration}</div>
+                </div>
+
+                <div class="rp-desc">
+                    <i class="far fa-file-alt"></i> ${intern.desc}
+                </div>
+
+                <div class="rp-skills">
+                    ${intern.skills.join('<span class="rp-dot">•</span>')}
+                </div>
+
+                <div class="rp-footer">
+                    <span class="rp-posted"><i class="fas fa-history"></i> ${intern.posted}</span>
+                    ${ppoHtml}
+                </div>
+            `;
+            profileList.appendChild(card);
+        });
+
+        // Small fade in effect for smooth UI loading
+        profileList.style.opacity = 0;
+        setTimeout(() => {
+            profileList.style.transition = 'opacity 0.4s ease';
+            profileList.style.opacity = 1;
+        }, 50);
+    }
+
+    // Initialize Dashboard only if elements exist on the current page
+    if (chartContainer && tableBody) {
+        initDashboard();
+    }
 });
