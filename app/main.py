@@ -167,7 +167,7 @@ def login_user(
     ).first()
 
     if skills_exist:
-        return RedirectResponse("/profile", status_code=303)
+        return RedirectResponse("/dashboard", status_code=303)
 
     return RedirectResponse("/upload-resume", status_code=303)
 
@@ -489,11 +489,19 @@ async def upload_resume(
     except Exception as e:
         print(f"Tips generation error: {e}")
 
-    return RedirectResponse("/profile", status_code=303)
+    return RedirectResponse("/dashboard", status_code=303)
 
 @app.get("/dashboard")
 def dashboard(request: Request):
     return templates.TemplateResponse("dashboard.html", {"request": request})
+
+@app.get("/internships")
+def internships_page(request: Request):
+    return templates.TemplateResponse("internship.html", {"request": request})
+
+@app.get("/internship_list")
+def internship_list_page(request: Request):
+    return templates.TemplateResponse("internship_list.html", {"request": request})
 
 @app.get("/api/market-data")
 async def get_market_data():

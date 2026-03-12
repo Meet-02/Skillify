@@ -1,6 +1,7 @@
 from google import genai
 from google.genai import types # Added for advanced config
 import os
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,6 +18,7 @@ if GEMINI_API_KEY:
 def generate_bio(extracted_skills: list) -> str:
     """
     Generates a professional bio using the NEW Google GenAI SDK.
+    Includes retry logic for 429 rate-limit errors.
     """
     # Clean and extract skill names
     skills = []
@@ -35,36 +37,52 @@ def generate_bio(extracted_skills: list) -> str:
     if not client:
         return f"Professional with expertise in: {', '.join(skills)}."
 
-    try:
-        skills_str = ", ".join(skills)
-        prompt = f"""
-        Write a professional LinkedIn-style bio in 2 sentences.
+    skills_str = ", ".join(skills)
+    prompt = f"""
+    Write a professional LinkedIn-style bio in 2 sentences.
 
-        Skills: {skills_str}
+    Skills: {skills_str}
 
-        Make the person sound ambitious and career-oriented.
-        Avoid generic phrases like "dedicated professional".
-        """
+    Make the person sound ambitious and career-oriented.
+    Avoid generic phrases like "dedicated professional".
+    """
 
-        # Try using the specific model ID
-        response = client.models.generate_content(
-            model="gemini-2.0-flash", 
-            contents=prompt
-        )
-        
-        if response and response.text:
-            return response.text.strip()
-        
-    except Exception as e:
-        print(f"Gemini API Error: {e}")
-        # If gemini-1.5-flash fails again, try the older naming convention as a backup
+    # Retry with exponential backoff for 429 rate-limit errors
+    max_retries = 3
+    wait_time = 40  # seconds (API suggested ~37s)
+
+    for attempt in range(max_retries):
         try:
             response = client.models.generate_content(
-                model="gemini-2.0-flash-lite",
+                model="gemini-2.0-flash", 
                 contents=prompt
             )
-            return response.text.strip()
-        except:
-            pass
+            
+            if response and response.text:
+                return response.text.strip()
+            break  # Successful but empty — don't retry
+            
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                if attempt < max_retries - 1:
+                    print(f"Gemini API rate limited (attempt {attempt + 1}/{max_retries}). Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    wait_time *= 2  # Exponential backoff
+                else:
+                    print(f"Gemini API rate limited after {max_retries} attempts. Using fallback.")
+            else:
+                print(f"Gemini API Error: {e}")
+                # Try backup model once
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-2.0-flash-lite",
+                        contents=prompt
+                    )
+                    if response and response.text:
+                        return response.text.strip()
+                except Exception:
+                    pass
+                break  # Non-retryable error
     
     return f"Experienced professional specialized in {', '.join(skills)}."
