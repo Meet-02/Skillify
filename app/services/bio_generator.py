@@ -54,7 +54,7 @@ def generate_bio(extracted_skills: list) -> str:
     for attempt in range(max_retries):
         try:
             response = client.models.generate_content(
-                model="gemini-2.0-flash", 
+                model="gemini-1.5-flash", 
                 contents=prompt
             )
             
@@ -76,7 +76,7 @@ def generate_bio(extracted_skills: list) -> str:
                 # Try backup model once
                 try:
                     response = client.models.generate_content(
-                        model="gemini-2.0-flash-lite",
+                        model="gemini-2.5-flash-lite",
                         contents=prompt
                     )
                     if response and response.text:
