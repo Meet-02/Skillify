@@ -26,6 +26,7 @@ load_dotenv()
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_KEY = os.getenv("ADZUNA_KEY")
 ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY")
+JSEARCH_API_KEY = os.getenv("JSEARCH_API_KEY", "d5582abc1dmsh253d3cd29d3d9aap157a15jsn58d5e9a8b4bf")
 
 SKILLS_TO_TRACK = [
     "React", "Python", "TypeScript", "AWS", "Docker","javascript","AI","ML","Data Science","Azure","GCP","lambda","mongodb","google cloud"
@@ -245,9 +246,11 @@ def profile_page(
         }
 
         for skill_name, skill_type in skills:
-            key = (skill_type or "").lower()
-            if key in user_profile:
-                user_profile[key].append(skill_name)
+            sk_t = (skill_type or "").lower()
+            bucket = ("tools"    if sk_t in ("tool", "tools") else
+                      "soft"     if sk_t == "soft" else
+                      "technical")
+            user_profile[bucket].append(skill_name)
 
         # Fallback: if no types mapped, treat all skills as technical
         if not any(user_profile.values()):
@@ -570,3 +573,181 @@ async def get_market_data():
             return []
 
     return results
+
+# ---------------------------------------------------------------------------
+# JSearch Internship API — with match scoring against user's profile
+# ---------------------------------------------------------------------------
+INDIAN_CITIES = [
+    "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai",
+    "Pune", "Kolkata", "Ahmedabad", "Jaipur", "Surat",
+    "Lucknow", "Noida", "Gurugram", "Indore", "Bhopal"
+]
+
+@app.get("/api/internships")
+async def get_internships(
+    request: Request,
+    city: str = "Mumbai",
+    date_filter: str = "3days",
+    db: Session = Depends(get_db)
+):
+    from app.models import Users, UserSkills, Skills, UserProfile
+
+    # ── 1. Load user profile & skills ─────────────────────────────────────
+    user_id = request.session.get("user_id")
+    user_skills_list = []
+    user_profile_struct = {"technical": [], "tools": [], "soft": []}
+    resume_text = ""
+    domain_interest = ""
+
+    if user_id:
+        try:
+            skills_raw = (
+                db.query(Skills.skill_name, Skills.skill_type)
+                .join(UserSkills, Skills.skill_id == UserSkills.skill_id)
+                .filter(UserSkills.user_id == user_id)
+                .all()
+            )
+            for sname, stype in skills_raw:
+                user_skills_list.append(sname)
+                sk_t = (stype or "").lower()
+                # Normalise: "tool" (singular) from skills_master → "tools" bucket
+                bucket = ("tools"    if sk_t in ("tool", "tools") else
+                          "soft"     if sk_t == "soft" else
+                          "technical")
+                user_profile_struct[bucket].append(sname)
+
+            resume_text = " ".join(user_skills_list)
+
+            prof = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
+            if prof and prof.domain_interest:
+                domain_interest = prof.domain_interest
+        except Exception as e:
+            print(f"Profile load error: {e}")
+
+    # ── 2. Build JSearch query ─────────────────────────────────────────────
+    # Map date_filter param to JSearch date_posted value
+    date_map = {"3days": "3days", "week": "week", "month": "month"}
+    date_posted = date_map.get(date_filter, "3days")
+
+    query_term = f"internship {domain_interest}".strip() if domain_interest else "internship"
+    search_query = f"{query_term} in {city}"
+
+    jsearch_url = (
+        f"https://jsearch.p.rapidapi.com/search"
+        f"?query={search_query.replace(' ', '%20')}"
+        f"&page=1&num_pages=2&date_posted={date_posted}"
+    )
+
+    headers = {
+        "x-rapidapi-key": JSEARCH_API_KEY,
+        "x-rapidapi-host": "jsearch.p.rapidapi.com",
+    }
+
+    raw_jobs = []
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(jsearch_url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                raw_jobs = data.get("data", [])
+    except Exception as e:
+        print(f"JSearch error: {e}")
+
+    # ── 3. Score each job against user profile ─────────────────────────────
+    results = []
+    for job in raw_jobs:
+        # Use "or" fallbacks everywhere — JSearch sometimes returns explicit None
+        # instead of omitting the key, which defeats .get(key, default).
+        title           = job.get("job_title") or ""
+        employer        = job.get("employer_name") or ""
+        location        = job.get("job_city") or job.get("job_state") or city
+        apply_link      = job.get("job_apply_link") or "#"
+        description     = job.get("job_description") or ""
+        posted_at       = job.get("job_posted_at_datetime_utc") or ""
+        employment_type = job.get("job_employment_type") or "Internship"
+        publisher       = job.get("job_publisher") or ""
+        employer_logo   = job.get("employer_logo") or ""
+
+        # Required qualifications chips
+        req_skills = []
+        highlights     = job.get("job_highlights") or {}
+        qualifications = highlights.get("Qualifications") or []
+        for q in qualifications[:5]:
+            if q:  # guard against None entries in qualifications list
+                req_skills.append(str(q))
+
+        # Compute match score using existing pipeline
+        match_score = 0
+        gap_sev = "N/A"
+        missing = {}
+
+        if user_skills_list:
+            from app.services.skill_extractor import extract_skills as ext_sk
+            from app.services.scoring_model import semantic_similarity, gap_severity as gap_sev_fn
+
+            # Build job_profile using ONLY canonical skill names extracted from
+            # the full job text. Never use raw title words (they pollute the
+            # missing-skills list with junk like "intern", "rails", "data").
+            job_text_blob = f"{title} {' '.join(req_skills)} {description[:3000]}"
+            job_skills_extracted = ext_sk(job_text_blob)
+
+            job_profile = {"technical": [], "tools": [], "soft": []}
+            for js in job_skills_extracted:
+                sk_type = (js.get("skill_type") or "technical").lower()
+                bucket = ("tools"    if sk_type in ("tool", "tools") else
+                          "soft"     if sk_type == "soft" else
+                          "technical")
+                name = js["skill_name"]
+                if name not in job_profile[bucket]:
+                    job_profile[bucket].append(name)
+
+            total_job_skills = sum(len(v) for v in job_profile.values())
+
+            try:
+                if total_job_skills == 0:
+                    # No canonical skills found — use pure semantic so score
+                    # is not unfairly 0%.
+                    sem = semantic_similarity(resume_text, job_text_blob[:1000])
+                    match_score = round(sem, 1)
+                    gap_sev = gap_sev_fn(match_score)
+                    missing = {}
+                else:
+                    result = run_matching_pipeline(
+                        user_profile=user_profile_struct,
+                        job_profile=job_profile,
+                        resume_text=resume_text,
+                        job_text=job_text_blob[:800],
+                    )
+                    match_score = result["final_match_score"]
+                    gap_sev = result["gap_severity"]
+                    # Only surface categories that actually have missing skills
+                    missing = {
+                        cat: skills
+                        for cat, skills in result["missing_skills"].items()
+                        if skills
+                    }
+            except Exception as e:
+                print(f"Scoring error: {e}")
+                match_score = 0
+
+        results.append({
+            "title": title,
+            "employer": employer,
+            "employer_logo": employer_logo,
+            "location": location,
+            "apply_link": apply_link,
+            "posted_at": posted_at,
+            "employment_type": employment_type,
+            "publisher": publisher,
+            "qualifications": req_skills,
+            "match_score": round(match_score, 1),
+            "gap_severity": gap_sev,
+            "missing_skills": missing,
+            "has_profile": bool(user_skills_list),
+        })
+
+    # Sort by match score if user has a profile, else by date
+    if user_skills_list:
+        results.sort(key=lambda x: x["match_score"], reverse=True)
+
+    return {"jobs": results, "total": len(results), "city": city, "cities": INDIAN_CITIES}
