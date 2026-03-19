@@ -26,7 +26,7 @@ load_dotenv()
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_KEY = os.getenv("ADZUNA_KEY")
 ADZUNA_COUNTRY = os.getenv("ADZUNA_COUNTRY")
-JSEARCH_API_KEY = os.getenv("JSEARCH_API_KEY", "d5582abc1dmsh253d3cd29d3d9aap157a15jsn58d5e9a8b4bf")
+JSEARCH_API_KEY = os.getenv("JSEARCH_API_KEY")
 
 SKILLS_TO_TRACK = [
     "React", "Python", "TypeScript", "AWS", "Docker","javascript","AI","ML","Data Science","Azure","GCP","lambda","mongodb","google cloud"
