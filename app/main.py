@@ -1,4 +1,5 @@
 import shutil
+import asyncio
 from pathlib import Path
 from datetime import datetime
 import os
@@ -551,18 +552,28 @@ async def get_internships(
     db:          Session = Depends(get_db),
 ):
     from app.models import Users, UserSkills, Skills, UserProfile
- 
+    from app.services.skill_extractor import extract_skills as ext_sk
+    from app.services.scoring_model import (
+        semantic_similarity,
+        gap_severity as gap_sev_fn,
+    )
 
     if not JSEARCH_API_KEY:
-        return {"jobs": [], "total": 0, "city": city, "cities": INDIAN_CITIES,
-                "error": "JSEARCH_API_KEY not configured in .env"}
- 
+        return {
+            "jobs": [],
+            "total": 0,
+            "city": city,
+            "cities": INDIAN_CITIES,
+            "error": "JSEARCH_API_KEY not configured in .env"
+        }
+
+
     user_id             = request.session.get("user_id")
     user_skills_list    = []
     user_profile_struct = {"technical": [], "tools": [], "soft": []}
     resume_text         = ""
     domain_interest     = ""
- 
+
     if user_id:
         try:
             skills_raw = (
@@ -571,132 +582,162 @@ async def get_internships(
                 .filter(UserSkills.user_id == user_id)
                 .all()
             )
+
             for sname, stype in skills_raw:
                 user_skills_list.append(sname)
                 sk_t   = (stype or "").lower()
-                bucket = ("tools"     if sk_t in ("tool", "tools") else
-                          "soft"      if sk_t == "soft" else
+                bucket = ("tools" if sk_t in ("tool", "tools") else
+                          "soft" if sk_t == "soft" else
                           "technical")
                 user_profile_struct[bucket].append(sname)
- 
+
             resume_text = " ".join(user_skills_list)
- 
+
             prof = db.query(UserProfile).filter(
                 UserProfile.user_id == user_id
             ).first()
+
             if prof and prof.domain_interest:
                 domain_interest = prof.domain_interest
+
         except Exception as e:
             print(f"Profile load error: {e}")
- 
+
+
     date_posted  = {"3days": "3days", "week": "week", "month": "month"}.get(
-                   date_filter, "3days")
-    query_term   = f"internship {domain_interest}".strip() if domain_interest \
-                   else "internship"
+        date_filter, "3days"
+    )
+
+    query_term   = f"internship {domain_interest}".strip() if domain_interest else "internship"
     search_query = f"{query_term} in {city}"
- 
+
+    num_pages = 5
+
     jsearch_url = (
         f"https://jsearch.p.rapidapi.com/search"
         f"?query={search_query.replace(' ', '%20')}"
-        f"&page=1&num_pages=2&date_posted={date_posted}"
+        f"&page=1&num_pages={num_pages}&date_posted={date_posted}"
     )
- 
+
     raw_jobs = []
+
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(jsearch_url, headers={
-                "x-rapidapi-key":  JSEARCH_API_KEY,
-                "x-rapidapi-host": "jsearch.p.rapidapi.com",
-            })
+            resp = await client.get(
+                jsearch_url,
+                headers={
+                    "x-rapidapi-key":  JSEARCH_API_KEY,
+                    "x-rapidapi-host": "jsearch.p.rapidapi.com",
+                }
+            )
+
             if resp.status_code == 200:
                 raw_jobs = resp.json().get("data", [])
             else:
                 print(f"JSearch HTTP {resp.status_code}: {resp.text[:200]}")
+
     except Exception as e:
         print(f"JSearch error: {e}")
- 
-    results = []
-    for job in raw_jobs:
-        title           = job.get("job_title")           or ""
-        employer        = job.get("employer_name")       or ""
-        location        = job.get("job_city") or job.get("job_state") or city
-        apply_link      = job.get("job_apply_link")      or "#"
-        description     = job.get("job_description")    or ""
-        posted_at       = job.get("job_posted_at_datetime_utc") or ""
-        employment_type = job.get("job_employment_type") or "Internship"
-        publisher       = job.get("job_publisher")       or ""
-        employer_logo   = job.get("employer_logo")       or ""
- 
-        highlights     = job.get("job_highlights") or {}
-        qualifications = highlights.get("Qualifications") or []
-        req_skills     = [str(q) for q in qualifications[:5] if q]
- 
-        match_score = 0
-        gap_sev     = "N/A"
-        missing     = {}
- 
-        if user_skills_list:
-            from app.services.skill_extractor import extract_skills as ext_sk
-            from app.services.scoring_model import (
-                semantic_similarity,
-                gap_severity as gap_sev_fn,
-            )
- 
-            job_text_blob      = f"{title} {' '.join(req_skills)} {description[:3000]}"
-            job_skills_extracted = ext_sk(job_text_blob)
- 
-            job_profile = {"technical": [], "tools": [], "soft": []}
-            for js in job_skills_extracted:
-                sk_type = (js.get("skill_type") or "technical").lower()
-                bucket  = ("tools"     if sk_type in ("tool", "tools") else
-                           "soft"      if sk_type == "soft" else
-                           "technical")
-                name = js["skill_name"]
-                if name not in job_profile[bucket]:
-                    job_profile[bucket].append(name)
- 
-            total_job_skills = sum(len(v) for v in job_profile.values())
- 
-            try:
-                if total_job_skills == 0:
-                    sem         = semantic_similarity(resume_text, job_text_blob[:1000])
-                    match_score = round(sem, 1)
-                    gap_sev     = gap_sev_fn(match_score)
-                else:
-                    result      = run_matching_pipeline(
-                        user_profile=user_profile_struct,
-                        job_profile=job_profile,
-                        resume_text=resume_text,
-                        job_text=job_text_blob[:800],
-                    )
-                    match_score = result["final_match_score"]
-                    gap_sev     = result["gap_severity"]
-                    missing     = {
-                        cat: skls
-                        for cat, skls in result["missing_skills"].items()
-                        if skls
-                    }
-            except Exception as e:
-                print(f"Scoring error: {e}")
-                match_score = 0
- 
-        results.append({
-            "title":          title,
-            "employer":       employer,
-            "employer_logo":  employer_logo,
-            "location":       location,
-            "apply_link":     apply_link,
-            "posted_at":      posted_at,
-            "employment_type": employment_type,
-            "publisher":      publisher,
-            "qualifications": req_skills,
-            "match_score":    round(match_score, 1),
-            "gap_severity":   gap_sev,
-            "missing_skills": missing,
-            "has_profile":    bool(user_skills_list),
-        })
- 
+
+    semaphore = asyncio.Semaphore(10)
+    loop = asyncio.get_event_loop()
+
+    async def process_job(job):
+        async with semaphore:
+
+            title           = job.get("job_title") or ""
+            employer        = job.get("employer_name") or ""
+            location        = job.get("job_city") or job.get("job_state") or city
+            apply_link      = job.get("job_apply_link") or "#"
+            description     = job.get("job_description") or ""
+            posted_at       = job.get("job_posted_at_datetime_utc") or ""
+            employment_type = job.get("job_employment_type") or "Internship"
+            publisher       = job.get("job_publisher") or ""
+            employer_logo   = job.get("employer_logo") or ""
+
+            highlights     = job.get("job_highlights") or {}
+            qualifications = highlights.get("Qualifications") or []
+            req_skills     = [str(q) for q in qualifications[:5] if q]
+
+            match_score = 0
+            gap_sev     = "N/A"
+            missing     = {}
+
+            if user_skills_list:
+
+                job_text_blob = f"{title} {' '.join(req_skills)} {description[:3000]}"
+
+                job_skills_extracted = await loop.run_in_executor(
+                    None, ext_sk, job_text_blob
+                )
+
+                job_profile = {"technical": [], "tools": [], "soft": []}
+                for js in job_skills_extracted:
+                    sk_type = (js.get("skill_type") or "technical").lower()
+                    bucket  = ("tools" if sk_type in ("tool", "tools") else
+                               "soft" if sk_type == "soft" else
+                               "technical")
+                    name = js["skill_name"]
+                    if name not in job_profile[bucket]:
+                        job_profile[bucket].append(name)
+
+                total_job_skills = sum(len(v) for v in job_profile.values())
+
+                try:
+                    if total_job_skills == 0:
+                        sem = semantic_similarity(resume_text, job_text_blob[:1000])
+                        match_score = round(sem, 1)
+                        gap_sev     = gap_sev_fn(match_score)
+
+                    else:
+                        result = await loop.run_in_executor(
+                            None,
+                            lambda: run_matching_pipeline(
+                                user_profile=user_profile_struct,
+                                job_profile=job_profile,
+                                resume_text=resume_text,
+                                job_text=job_text_blob[:800],
+                            )
+                        )
+
+                        match_score = result["final_match_score"]
+                        gap_sev     = result["gap_severity"]
+                        missing     = {
+                            cat: skls
+                            for cat, skls in result["missing_skills"].items()
+                            if skls
+                        }
+
+                except Exception as e:
+                    print(f"Scoring error: {e}")
+                    match_score = 0
+
+            return {
+                "title": title,
+                "employer": employer,
+                "employer_logo": employer_logo,
+                "location": location,
+                "apply_link": apply_link,
+                "posted_at": posted_at,
+                "employment_type": employment_type,
+                "publisher": publisher,
+                "qualifications": req_skills,
+                "match_score": round(match_score, 1),
+                "gap_severity": gap_sev,
+                "missing_skills": missing,
+                "has_profile": bool(user_skills_list),
+            }
+
+
+    tasks = [process_job(job) for job in raw_jobs]
+    results = await asyncio.gather(*tasks)
+
     if user_skills_list:
         results.sort(key=lambda x: x["match_score"], reverse=True)
- 
-    return {"jobs": results, "total": len(results), "city": city, "cities": INDIAN_CITIES}
+
+    return {
+        "jobs": results,
+        "total": len(results),
+        "city": city,
+        "cities": INDIAN_CITIES
+    }
