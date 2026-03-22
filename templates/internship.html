@@ -9,14 +9,14 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { font-family: 'Inter', sans-serif; background: var(--bg-body); }
-
+ 
         .intern-page {
             max-width: 1100px;
             margin: 0 auto;
             padding: 6rem 1.5rem 4rem;
         }
-
-        /* Hero */
+ 
+        /* ── Hero ── */
         .intern-hero {
             background: var(--gradient-primary);
             border-radius: 1.25rem;
@@ -28,8 +28,8 @@
         }
         .intern-hero h1 { font-size: 2rem; font-weight: 800; margin-bottom: .4rem; }
         .intern-hero p  { opacity: .85; font-size: 1rem; }
-
-        /* Filter bar */
+ 
+        /* ── Filter bar ── */
         .filter-bar {
             background: #fff;
             border-radius: 1rem;
@@ -46,11 +46,11 @@
             align-items: center;
             gap: .5rem;
             flex: 1;
-            min-width: 180px;
+            min-width: 170px;
         }
         .filter-group label {
             font-weight: 600;
-            font-size: .85rem;
+            font-size: .82rem;
             color: var(--text-muted);
             white-space: nowrap;
         }
@@ -60,7 +60,7 @@
             border: 1.5px solid #e2e8f0;
             border-radius: .6rem;
             font-family: inherit;
-            font-size: .9rem;
+            font-size: .88rem;
             color: var(--text-main);
             background: #f8fafc;
             cursor: pointer;
@@ -68,7 +68,10 @@
             transition: border-color .2s;
         }
         .filter-group select:focus { border-color: var(--primary); }
-
+ 
+        /* Domain select gets a slightly wider min */
+        #domainSelect { min-width: 160px; }
+ 
         #searchBtn {
             padding: .65rem 1.75rem;
             font-size: .95rem;
@@ -83,11 +86,20 @@
             gap: .45rem;
             box-shadow: 0 4px 14px rgba(14,165,233,.35);
             transition: transform .15s, box-shadow .15s;
+            white-space: nowrap;
         }
-        #searchBtn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(14,165,233,.3); }
+        #searchBtn:hover  { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(14,165,233,.3); }
         #searchBtn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
-
-        /* Meta + sort */
+ 
+        /* ── Active domain pill ── */
+        .domain-pill {
+            display: inline-flex; align-items: center; gap: .4rem;
+            background: #ede9fe; color: #6d28d9;
+            padding: .28rem .85rem; border-radius: 2rem;
+            font-size: .78rem; font-weight: 700;
+        }
+ 
+        /* ── Results meta + sort ── */
         .results-meta {
             display: flex;
             justify-content: space-between;
@@ -98,35 +110,25 @@
         }
         .results-meta span { font-size: .9rem; color: var(--text-muted); font-weight: 500; }
         .badge-city {
-            background: #e0f2fe;
-            color: #0284c7;
-            padding: .25rem .75rem;
-            border-radius: 2rem;
-            font-size: .8rem;
-            font-weight: 700;
+            background: #e0f2fe; color: #0284c7;
+            padding: .25rem .75rem; border-radius: 2rem;
+            font-size: .8rem; font-weight: 700;
         }
-
-        .sort-tabs { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
+ 
+        .sort-tabs { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
         .sort-tab {
-            padding: .4rem 1rem;
-            border-radius: 2rem;
-            font-size: .82rem;
-            font-weight: 600;
-            cursor: pointer;
-            border: 1.5px solid #e2e8f0;
-            background: #fff;
-            color: var(--text-muted);
+            padding: .4rem 1rem; border-radius: 2rem;
+            font-size: .82rem; font-weight: 600; cursor: pointer;
+            border: 1.5px solid #e2e8f0; background: #fff; color: var(--text-muted);
             transition: all .15s;
         }
         .sort-tab.active, .sort-tab:hover {
-            background: var(--primary);
-            color: #fff;
-            border-color: var(--primary);
+            background: var(--primary); color: #fff; border-color: var(--primary);
         }
-
-        /* Job cards */
+ 
+        /* ── Job cards ── */
         #jobGrid { display: flex; flex-direction: column; gap: 1.1rem; }
-
+ 
         .job-card {
             background: #fff;
             border-radius: 1rem;
@@ -140,7 +142,7 @@
             transition: box-shadow .2s, transform .2s;
         }
         .job-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
-
+ 
         .company-logo {
             width: 52px; height: 52px;
             border-radius: .65rem;
@@ -157,10 +159,10 @@
             font-weight: 800; font-size: 1.2rem; color: var(--primary);
             flex-shrink: 0;
         }
-
-        .job-title { font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin-bottom: .2rem; }
-        .job-company { font-size: .88rem; color: var(--text-muted); margin-bottom: .5rem; }
-
+ 
+        .job-title   { font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin-bottom: .2rem; }
+        .job-company { font-size: .88rem;  color: var(--text-muted); margin-bottom: .5rem; }
+ 
         .job-meta { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: .65rem; }
         .meta-chip {
             display: inline-flex; align-items: center; gap: .3rem;
@@ -171,7 +173,8 @@
         .chip-location { background: #e0f2fe; color: #0284c7; }
         .chip-type     { background: #ede9fe; color: #7c3aed; }
         .chip-posted   { background: #f0fdf4; color: #15803d; }
-
+        .chip-domain   { background: #fef3c7; color: #92400e; }
+ 
         .qualif-row { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .4rem; }
         .qualif-tag {
             padding: .2rem .55rem; border-radius: .4rem;
@@ -179,20 +182,20 @@
             font-size: .72rem; color: var(--text-muted);
             max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-
+ 
         .no-profile-notice {
             margin-top: .5rem; padding: .5rem 1rem;
             background: #fffbeb; border: 1px solid #fde68a; border-radius: .65rem;
             font-size: .8rem; color: #92400e;
         }
         .no-profile-notice a { color: var(--primary); font-weight: 600; }
-
-        /* Right column */
+ 
+        /* ── Right column ── */
         .job-right {
             display: flex; flex-direction: column;
             align-items: flex-end; gap: .7rem; min-width: 110px;
         }
-
+ 
         /* Match ring */
         .match-ring { position: relative; width: 72px; height: 72px; }
         .match-ring svg { transform: rotate(-90deg); }
@@ -203,9 +206,9 @@
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
         }
-        .match-pct  { font-size: .95rem; font-weight: 800; line-height: 1; }
-        .match-label{ font-size: .58rem; font-weight: 600; color: var(--text-muted); margin-top: 1px; }
-
+        .match-pct   { font-size: .95rem; font-weight: 800; line-height: 1; }
+        .match-label { font-size: .58rem; font-weight: 600; color: var(--text-muted); margin-top: 1px; }
+ 
         .gap-badge {
             font-size: .72rem; font-weight: 700;
             padding: .22rem .65rem; border-radius: 2rem;
@@ -214,7 +217,7 @@
         .gap-Medium { background: #fef3c7; color: #92400e; }
         .gap-High   { background: #fee2e2; color: #991b1b; }
         .gap-NA     { background: #f1f5f9; color: var(--text-muted); }
-
+ 
         .apply-btn {
             display: inline-flex; align-items: center; gap: .4rem;
             padding: .5rem 1.1rem; border-radius: .6rem;
@@ -223,7 +226,7 @@
             transition: opacity .15s, transform .15s; white-space: nowrap;
         }
         .apply-btn:hover { opacity: .9; transform: translateY(-1px); }
-
+ 
         /* Skeleton */
         .skeleton-card {
             background: #fff; border-radius: 1rem; padding: 1.4rem 1.6rem;
@@ -231,21 +234,22 @@
         }
         .skel { background: #e2e8f0; border-radius: .5rem; animation: pulse 1.4s infinite; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
+ 
         .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
         .empty-state i { font-size: 3rem; margin-bottom: 1rem; opacity: .4; display: block; }
         .empty-state h3 { font-size: 1.2rem; margin-bottom: .5rem; }
-
+ 
         @media(max-width:640px){
             .job-card { grid-template-columns: 44px 1fr; }
             .job-right { grid-column: 1/-1; flex-direction: row; flex-wrap: wrap; align-items: center; }
             .intern-hero h1 { font-size: 1.5rem; }
+            .filter-group { min-width: 140px; }
         }
     </style>
 </head>
-
+ 
 <body class="dashboard-body">
-
+ 
 <!-- Navbar -->
 <nav class="navbar dashboard-nav">
     <div class="container nav-container">
@@ -264,17 +268,19 @@
         </div>
     </div>
 </nav>
-
+ 
 <main class="intern-page">
-
+ 
     <!-- Hero -->
     <div class="intern-hero">
         <h1><i class="fas fa-briefcase" style="margin-right:.5rem"></i>Find Your Perfect Internship</h1>
         <p>Live listings from across India — scored against your skills profile</p>
     </div>
-
+ 
     <!-- Filters -->
     <div class="filter-bar">
+ 
+        <!-- City -->
         <div class="filter-group">
             <label><i class="fas fa-map-marker-alt" style="color:var(--primary)"></i>&nbsp;City</label>
             <select id="citySelect">
@@ -295,6 +301,43 @@
                 <option value="Bhopal">Bhopal</option>
             </select>
         </div>
+ 
+        <!-- Domain -->
+        <div class="filter-group">
+            <label><i class="fas fa-layer-group" style="color:var(--primary)"></i>&nbsp;Domain</label>
+            <select id="domainSelect">
+                <option value="">🌐 All Domains</option>
+                <optgroup label="── Tech ──────────────────">
+                <option value="software">💻 Software Engineer</option>
+                <option value="frontend">🖥️ Frontend Developer</option>
+                <option value="backend">⚙️ Backend Developer</option>
+                <option value="fullstack">🔄 Full Stack Developer</option>
+                <option value="android">🤖 Android Developer</option>
+                <option value="ios">🍎 iOS Developer</option>
+                <option value="devops">☁️ DevOps / Cloud</option>
+                <option value="data">📊 Data Science</option>
+                <option value="ml">🧠 ML / AI Engineer</option>
+                <option value="dataeng">🔧 Data Engineer</option>
+                <option value="uiux">🎨 UI / UX Designer</option>
+                <option value="qa">🧪 QA / Testing</option>
+                <option value="cyber">🔐 Cybersecurity</option>
+                <option value="product">📋 Product Manager</option>
+                <option value="embedded">🔌 Embedded / IoT</option>
+                <option value="blockchain">⛓️ Blockchain / Web3</option>
+                </optgroup>
+                <optgroup label="── Non-Tech ──────────────">
+                <option value="marketing">📢 Marketing</option>
+                <option value="finance">💰 Finance & Accounting</option>
+                <option value="hr">👥 Human Resources</option>
+                <option value="sales">🤝 Sales & BD</option>
+                <option value="operations">🏭 Operations</option>
+                <option value="content">✍️ Content & Media</option>
+                <option value="design">🖌️ Graphic Design</option>
+                </optgroup>
+            </select>
+        </div>
+ 
+        <!-- Posted -->
         <div class="filter-group">
             <label><i class="fas fa-clock" style="color:var(--primary)"></i>&nbsp;Posted</label>
             <select id="dateSelect">
@@ -303,17 +346,24 @@
                 <option value="month">Last Month</option>
             </select>
         </div>
+ 
         <button id="searchBtn" onclick="fetchInternships()">
             <i class="fas fa-search"></i> Search
         </button>
     </div>
-
+ 
     <!-- Results meta -->
     <div class="results-meta" id="resultsMeta" style="display:none">
-        <span id="resultsCount"></span>
-        <span class="badge-city" id="cityBadge"></span>
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+            <span id="resultsCount"></span>
+            <span class="badge-city" id="cityBadge"></span>
+            <span class="domain-pill" id="domainBadge" style="display:none">
+                <i class="fas fa-layer-group"></i>
+                <span id="domainBadgeText"></span>
+            </span>
+        </div>
     </div>
-
+ 
     <!-- Sort tabs -->
     <div class="sort-tabs" id="sortTabs" style="display:none">
         <button class="sort-tab active" id="tabMatch" onclick="sortJobs('match',this)">
@@ -322,50 +372,109 @@
         <button class="sort-tab" id="tabRecent" onclick="sortJobs('recent',this)">
             <i class="fas fa-clock"></i> Most Recent
         </button>
+        <button class="sort-tab" id="tabAlpha" onclick="sortJobs('alpha',this)">
+            <i class="fas fa-sort-alpha-down"></i> A–Z
+        </button>
     </div>
-
+ 
     <!-- Job Grid -->
     <div id="jobGrid"></div>
-
+ 
 </main>
-
+ 
 <script>
 let allJobs = [];
-
+ 
+/* ── Domain label map ── */
+const DOMAIN_LABELS = {
+    '':           '🌐 All Domains',
+    // Tech
+    'software':   '💻 Software Engineer',
+    'frontend':   '🖥️ Frontend Developer',
+    'backend':    '⚙️ Backend Developer',
+    'fullstack':  '🔄 Full Stack Developer',
+    'android':    '🤖 Android Developer',
+    'ios':        '🍎 iOS Developer',
+    'devops':     '☁️ DevOps / Cloud',
+    'data':       '📊 Data Science',
+    'ml':         '🧠 ML / AI Engineer',
+    'dataeng':    '🔧 Data Engineer',
+    'uiux':       '🎨 UI / UX Designer',
+    'qa':         '🧪 QA / Testing',
+    'cyber':      '🔐 Cybersecurity',
+    'product':    '📋 Product Manager',
+    'embedded':   '🔌 Embedded / IoT',
+    'blockchain': '⛓️ Blockchain / Web3',
+    // Non-Tech
+    'marketing':  '📢 Marketing',
+    'finance':    '💰 Finance & Accounting',
+    'hr':         '👥 Human Resources',
+    'sales':      '🤝 Sales & BD',
+    'operations': '🏭 Operations',
+    'content':    '✍️ Content & Media',
+    'design':     '🖌️ Graphic Design',
+};
+ 
 /* ── Init ── */
 (function init() {
-    const saved = localStorage.getItem('skillify_city');
-    if (saved) document.getElementById('citySelect').value = saved;
+    const savedCity   = localStorage.getItem('skillify_city');
+    const savedDomain = localStorage.getItem('skillify_domain');
+    const savedDate   = localStorage.getItem('skillify_date');
+    if (savedCity)   document.getElementById('citySelect').value   = savedCity;
+    if (savedDomain) document.getElementById('domainSelect').value = savedDomain;
+    if (savedDate)   document.getElementById('dateSelect').value   = savedDate;
     fetchInternships();
 })();
-
+ 
 /* ── Fetch ── */
 async function fetchInternships() {
     const city   = document.getElementById('citySelect').value;
+    const domain = document.getElementById('domainSelect').value;
     const filter = document.getElementById('dateSelect').value;
     const btn    = document.getElementById('searchBtn');
-
-    localStorage.setItem('skillify_city', city);
+ 
+    localStorage.setItem('skillify_city',   city);
+    localStorage.setItem('skillify_domain', domain);
+    localStorage.setItem('skillify_date',   filter);
+ 
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching…';
-
+ 
     document.getElementById('resultsMeta').style.display = 'none';
-    document.getElementById('sortTabs').style.display = 'none';
+    document.getElementById('sortTabs').style.display    = 'none';
     showSkeletons();
-
+ 
     try {
-        const res  = await fetch(`/api/internships?city=${encodeURIComponent(city)}&date_filter=${filter}`);
+        const url = `/api/internships?city=${encodeURIComponent(city)}&date_filter=${filter}&domain=${encodeURIComponent(domain)}`;
+        const res  = await fetch(url);
         const data = await res.json();
+ 
         allJobs = data.jobs || [];
+ 
+        /* reset sort to Best Match on every new search */
+        document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById('tabMatch').classList.add('active');
+ 
         renderJobs();
-
+ 
+        /* Meta bar */
         document.getElementById('resultsMeta').style.display = 'flex';
-        document.getElementById('resultsCount').textContent =
+        document.getElementById('resultsCount').textContent  =
             `${allJobs.length} internship${allJobs.length !== 1 ? 's' : ''} found`;
         document.getElementById('cityBadge').textContent = `📍 ${data.city}`;
-
+ 
+        /* Domain badge */
+        const domBadge = document.getElementById('domainBadge');
+        const domText  = document.getElementById('domainBadgeText');
+        if (domain) {
+            domText.textContent     = DOMAIN_LABELS[domain] || domain;
+            domBadge.style.display  = 'inline-flex';
+        } else {
+            domBadge.style.display  = 'none';
+        }
+ 
         if (allJobs.length) document.getElementById('sortTabs').style.display = 'flex';
-
+ 
     } catch(e) {
         document.getElementById('jobGrid').innerHTML = `
             <div class="empty-state">
@@ -378,24 +487,28 @@ async function fetchInternships() {
         btn.innerHTML = '<i class="fas fa-search"></i> Search';
     }
 }
-
+ 
 /* ── Sort ── */
 function sortJobs(by, el) {
     document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
     el.classList.add('active');
-
+ 
     if (by === 'match') {
-        allJobs.sort((a,b) => b.match_score - a.match_score);
-    } else {
-        allJobs.sort((a,b) => {
+        allJobs.sort((a, b) => b.match_score - a.match_score);
+    } else if (by === 'recent') {
+        allJobs.sort((a, b) => {
             const da = a.posted_at ? new Date(a.posted_at) : 0;
             const db = b.posted_at ? new Date(b.posted_at) : 0;
             return db - da;
         });
+    } else if (by === 'alpha') {
+        allJobs.sort((a, b) =>
+            (a.title || '').localeCompare(b.title || '')
+        );
     }
     renderJobs();
 }
-
+ 
 /* ── Render ── */
 function renderJobs() {
     const grid = document.getElementById('jobGrid');
@@ -404,13 +517,13 @@ function renderJobs() {
             <div class="empty-state">
                 <i class="fas fa-search"></i>
                 <h3>No internships found</h3>
-                <p>Try a different city or expand the date range.</p>
+                <p>Try a different city, domain, or expand the date range.</p>
             </div>`;
         return;
     }
     grid.innerHTML = allJobs.map(buildCard).join('');
-
-    // Animate SVG rings
+ 
+    /* Animate SVG rings after DOM paint */
     requestAnimationFrame(() => {
         document.querySelectorAll('.match-ring[data-pct]').forEach(el => {
             const pct = parseFloat(el.dataset.pct) || 0;
@@ -420,44 +533,52 @@ function renderJobs() {
         });
     });
 }
-
+ 
 function buildCard(job) {
     const score      = job.match_score || 0;
     const hasProfile = job.has_profile;
     const C          = 2 * Math.PI * 28;
-
+ 
+    /* ring colour: red → amber → green */
     let ringColor = '#ef4444';
-    if (score >= 60) ringColor = '#f59e0b';
-    if (score >= 75) ringColor = '#10b981';
-
+    if (score >= 40) ringColor = '#f59e0b';
+    if (score >= 65) ringColor = '#10b981';
+ 
     const logoHtml = job.employer_logo
         ? `<img class="company-logo" src="${escHtml(job.employer_logo)}" alt="${escHtml(job.employer)}"
                onerror="this.outerHTML='<div class=\\'logo-placeholder\\'>${escHtml((job.employer||'?')[0].toUpperCase())}</div>'">`
         : `<div class="logo-placeholder">${escHtml((job.employer||'?')[0].toUpperCase())}</div>`;
-
+ 
     const gapClass = job.gap_severity === 'N/A' ? 'gap-NA' : `gap-${job.gap_severity}`;
     const gapLabel = hasProfile
         ? (job.gap_severity === 'N/A' ? '—' : `${job.gap_severity} Gap`)
         : 'Upload Resume';
-
+ 
     const postedStr = job.posted_at ? timeAgo(job.posted_at) : 'Recently';
-
+ 
     const qualifHtml = (job.qualifications || []).slice(0, 4)
         .map(q => `<span class="qualif-tag" title="${escHtml(q)}">${escHtml(q)}</span>`)
         .join('');
-
+ 
     const missingAll = Object.values(job.missing_skills || {}).flat();
     const missingHtml = (hasProfile && missingAll.length)
         ? `<div style="margin-top:.4rem;font-size:.73rem;color:#ef4444;font-weight:500">
                <i class="fas fa-exclamation-triangle"></i>
-               Missing: ${missingAll.slice(0,4).map(escHtml).join(', ')}${missingAll.length>4?' …':''}
+               Missing: ${missingAll.slice(0, 4).map(escHtml).join(', ')}${missingAll.length > 4 ? ' …' : ''}
            </div>`
         : '';
-
+ 
+    /* score display — always show, even if 0% */
+    const scoreDisplay = hasProfile
+        ? (score > 0 ? score + '%' : '0%')
+        : '—';
+    const ringStroke   = hasProfile ? ringColor : '#e2e8f0';
+    const scoreStyle   = `color:${hasProfile ? ringColor : 'var(--text-muted)'}`;
+ 
     return `
     <div class="job-card">
         ${logoHtml}
-
+ 
         <div class="job-body">
             <div class="job-title">${escHtml(job.title || 'Internship')}</div>
             <div class="job-company">
@@ -478,21 +599,19 @@ function buildCard(job) {
                     <a href="/upload-resume">Upload your resume</a> to see your match % for this role.
                 </div>` : ''}
         </div>
-
+ 
         <div class="job-right">
             <div class="match-ring" data-pct="${hasProfile ? score : 0}">
                 <svg viewBox="0 0 70 70" width="70" height="70">
                     <circle class="ring-bg" cx="35" cy="35" r="28"
                         stroke-dasharray="${C}" stroke-dashoffset="0"/>
                     <circle class="ring-fg" cx="35" cy="35" r="28"
-                        stroke="${hasProfile ? ringColor : '#e2e8f0'}"
+                        stroke="${ringStroke}"
                         stroke-dasharray="${C}" stroke-dashoffset="${C}"
                         style="transition:stroke-dashoffset .7s ease"/>
                 </svg>
                 <div class="match-text">
-                    <span class="match-pct" style="color:${hasProfile ? ringColor : 'var(--text-muted)'}">
-                        ${hasProfile ? score + '%' : '—'}
-                    </span>
+                    <span class="match-pct" style="${scoreStyle}">${scoreDisplay}</span>
                     <span class="match-label">MATCH</span>
                 </div>
             </div>
@@ -503,25 +622,25 @@ function buildCard(job) {
         </div>
     </div>`;
 }
-
+ 
 /* ── Utils ── */
 function timeAgo(dateStr) {
     try {
         const diff = Math.floor((Date.now() - new Date(dateStr)) / 60000);
         if (diff < 60)   return `${diff}m ago`;
-        if (diff < 1440) return `${Math.floor(diff/60)}h ago`;
-        return `${Math.floor(diff/1440)}d ago`;
+        if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+        return `${Math.floor(diff / 1440)}d ago`;
     } catch { return 'Recently'; }
 }
-
+ 
 function escHtml(str) {
     return String(str ?? '')
-        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
-
+ 
 function showSkeletons() {
-    document.getElementById('jobGrid').innerHTML = Array(5).fill(0).map(() => `
+    document.getElementById('jobGrid').innerHTML = Array(6).fill(0).map(() => `
         <div class="skeleton-card">
             <div class="skel" style="width:52px;height:52px;border-radius:.65rem;flex-shrink:0"></div>
             <div style="flex:1;display:flex;flex-direction:column;gap:.6rem">
@@ -530,6 +649,7 @@ function showSkeletons() {
                 <div style="display:flex;gap:.4rem">
                     <div class="skel" style="height:1.4rem;width:80px;border-radius:2rem"></div>
                     <div class="skel" style="height:1.4rem;width:70px;border-radius:2rem"></div>
+                    <div class="skel" style="height:1.4rem;width:60px;border-radius:2rem"></div>
                 </div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.75rem">
@@ -540,6 +660,6 @@ function showSkeletons() {
         </div>`).join('');
 }
 </script>
-
+ 
 </body>
 </html>

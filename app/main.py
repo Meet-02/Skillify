@@ -195,11 +195,11 @@ def profile_page(request: Request, db: Session = Depends(get_db)):
     skill_list   = [s[0] for s in skills]
     skills_count = len(skill_list)
  
-
+ 
     resume_uploaded = bool(user.resume_uploaded) if user.resume_uploaded is not None \
                       else len(skill_list) > 0
  
-
+ 
     resume_filename = None
     if resume_uploaded:
         upload_dir = static_dir / "resumes"
@@ -360,7 +360,7 @@ async def upload_resume(
     if not user:
         return RedirectResponse("/login", status_code=303)
  
-
+ 
     if resume.content_type not in ("application/pdf", "application/octet-stream"):
         return templates.TemplateResponse(
             "upload_resume.html",
@@ -536,44 +536,192 @@ async def get_market_data():
     return results
  
  
-
+ 
 INDIAN_CITIES = [
     "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai",
     "Pune", "Kolkata", "Ahmedabad", "Jaipur", "Surat",
     "Lucknow", "Noida", "Gurugram", "Indore", "Bhopal",
 ]
  
+# ── JSearch page config ───────────────────────────────────────────────────────
+# 3days → 6 pages × 10 jobs = ~60 unique jobs
+# week / month → 9 pages × 10 jobs = ~90 unique jobs (deduped across 2 queries)
+_PAGES_BY_FILTER = {"3days": 6, "week": 9, "month": 9}
+ 
+# Persistent thread-pool for CPU-bound scoring (doesn't block the event loop)
+from concurrent.futures import ThreadPoolExecutor
+_SCORE_EXECUTOR = ThreadPoolExecutor(max_workers=6)
+ 
+ 
+async def _fetch_jsearch_page(
+    client: httpx.AsyncClient,
+    query: str,
+    page: int,
+    date_posted: str,
+) -> list:
+    """Fetch one JSearch result page. Returns raw job list (empty on any error)."""
+    url = (
+        "https://jsearch.p.rapidapi.com/search"
+        f"?query={query.replace(' ', '%20')}"
+        f"&page={page}&num_pages=1&date_posted={date_posted}"
+    )
+    try:
+        resp = await client.get(url, headers={
+            "x-rapidapi-key":  JSEARCH_API_KEY,
+            "x-rapidapi-host": "jsearch.p.rapidapi.com",
+        }, timeout=20)
+        if resp.status_code == 200:
+            return resp.json().get("data", [])
+        print(f"JSearch page {page} HTTP {resp.status_code}")
+    except Exception as exc:
+        print(f"JSearch page {page} error: {exc}")
+    return []
+ 
+ 
+def _score_job(
+    job_raw: dict,
+    city: str,
+    user_skills_list: list,
+    user_profile_struct: dict,
+    resume_text: str,
+) -> dict:
+    """
+    CPU-bound work — skill extraction + match scoring for one job.
+    Runs inside ThreadPoolExecutor so the async event loop stays unblocked.
+    """
+    from app.services.skill_extractor import extract_skills as ext_sk
+    from app.services.scoring_model import semantic_similarity, gap_severity as gap_sev_fn
+ 
+    title           = job_raw.get("job_title")           or ""
+    employer        = job_raw.get("employer_name")        or ""
+    location        = job_raw.get("job_city") or job_raw.get("job_state") or city
+    apply_link      = job_raw.get("job_apply_link")       or "#"
+    description     = job_raw.get("job_description")     or ""
+    posted_at       = job_raw.get("job_posted_at_datetime_utc") or ""
+    employment_type = job_raw.get("job_employment_type")  or "Internship"
+    publisher       = job_raw.get("job_publisher")        or ""
+    employer_logo   = job_raw.get("employer_logo")        or ""
+ 
+    highlights     = job_raw.get("job_highlights") or {}
+    qualifications = highlights.get("Qualifications") or []
+    req_skills     = [str(q) for q in qualifications[:5] if q]
+ 
+    match_score = 0
+    gap_sev     = "N/A"
+    missing: dict = {}
+ 
+    if user_skills_list:
+        job_text_blob    = f"{title} {' '.join(req_skills)} {description[:3000]}"
+        job_text_scoring = f"{title} {' '.join(req_skills)} {description[:800]}"
+ 
+        job_skills_extracted = ext_sk(job_text_blob)
+ 
+        job_profile: dict = {"technical": [], "tools": [], "soft": []}
+        for js in job_skills_extracted:
+            sk_type = (js.get("skill_type") or "technical").lower()
+            bucket  = ("tools"     if sk_type in ("tool", "tools") else
+                       "soft"      if sk_type == "soft" else
+                       "technical")
+            name = js["skill_name"]
+            if name not in job_profile[bucket]:
+                job_profile[bucket].append(name)
+ 
+        total_job_skills = sum(len(v) for v in job_profile.values())
+ 
+        try:
+            if total_job_skills == 0:
+                match_score = round(semantic_similarity(resume_text, job_text_scoring), 1)
+                gap_sev     = gap_sev_fn(match_score)
+            else:
+                result = run_matching_pipeline(
+                    user_profile=user_profile_struct,
+                    job_profile=job_profile,
+                    resume_text=resume_text,
+                    job_text=job_text_scoring,
+                )
+                match_score = result["final_match_score"]
+                gap_sev     = result["gap_severity"]
+                missing     = {
+                    cat: skls
+                    for cat, skls in result["missing_skills"].items()
+                    if skls
+                }
+        except Exception as exc:
+            print(f"Scoring error: {exc}")
+ 
+    return {
+        "title":           title,
+        "employer":        employer,
+        "employer_logo":   employer_logo,
+        "location":        location,
+        "apply_link":      apply_link,
+        "posted_at":       posted_at,
+        "employment_type": employment_type,
+        "publisher":       publisher,
+        "qualifications":  req_skills,
+        "match_score":     round(match_score, 1),
+        "gap_severity":    gap_sev,
+        "missing_skills":  missing,
+        "has_profile":     bool(user_skills_list),
+    }
+ 
+ 
+# Domain → JSearch keyword mapping
+# Each domain has a primary search term and an optional secondary broad term
+DOMAIN_KEYWORDS: dict[str, str] = {
+    # ── All ──────────────────────────────────────────────────────────────────
+    "":           "",   # All Domains — no extra keyword
+ 
+    # ── Tech (granular) ──────────────────────────────────────────────────────
+    "frontend":   "frontend developer react angular vue javascript html css",
+    "backend":    "backend developer nodejs python django flask java spring api",
+    "fullstack":  "full stack developer react nodejs javascript python",
+    "android":    "android developer kotlin java mobile app android studio",
+    "ios":        "ios developer swift swiftui xcode apple mobile",
+    "devops":     "devops cloud engineer aws azure gcp kubernetes docker ci cd",
+    "data":       "data scientist analytics python pandas numpy machine learning",
+    "ml":         "machine learning ai engineer deep learning nlp pytorch tensorflow",
+    "dataeng":    "data engineer pipeline etl spark sql bigdata hadoop airflow",
+    "cyber":      "cybersecurity ethical hacking penetration testing network security",
+    "uiux":       "ui ux designer figma product design user experience wireframe",
+    "embedded":   "embedded systems iot arduino raspberry pi firmware c cpp",
+    "blockchain": "blockchain web3 solidity smart contracts ethereum dapp",
+    "qa":         "quality assurance software testing automation selenium pytest",
+    "software":   "software engineer developer programming computer science",
+    "product":    "product manager product management agile roadmap user stories",
+ 
+    # ── Non-tech (major only) ────────────────────────────────────────────────
+    "marketing":  "marketing digital marketing social media seo content strategy",
+    "finance":    "finance accounting banking financial analyst chartered accountant",
+    "hr":         "human resources hr recruiter talent acquisition payroll",
+    "sales":      "sales business development account manager client relations",
+    "operations": "operations supply chain logistics management process improvement",
+    "content":    "content writing media journalism copywriting editorial blogger",
+    "design":     "graphic design creative visual designer canva adobe illustrator",
+}
+ 
  
 @app.get("/api/internships")
 async def get_internships(
     request:     Request,
-    city:        str     = "Mumbai",
-    date_filter: str     = "3days",
+    city:        str = "Mumbai",
+    date_filter: str = "3days",
+    domain:      str = "",          # ← NEW: domain filter from frontend dropdown
     db:          Session = Depends(get_db),
 ):
-    from app.models import Users, UserSkills, Skills, UserProfile
-    from app.services.skill_extractor import extract_skills as ext_sk
-    from app.services.scoring_model import (
-        semantic_similarity,
-        gap_severity as gap_sev_fn,
-    )
-
+    from app.models import UserSkills, Skills, UserProfile
+ 
     if not JSEARCH_API_KEY:
-        return {
-            "jobs": [],
-            "total": 0,
-            "city": city,
-            "cities": INDIAN_CITIES,
-            "error": "JSEARCH_API_KEY not configured in .env"
-        }
-
-
-    user_id             = request.session.get("user_id")
-    user_skills_list    = []
-    user_profile_struct = {"technical": [], "tools": [], "soft": []}
-    resume_text         = ""
-    domain_interest     = ""
-
+        return {"jobs": [], "total": 0, "city": city, "cities": INDIAN_CITIES,
+                "error": "JSEARCH_API_KEY not configured in .env"}
+ 
+    # ── 1. Load user profile (one DB query) ───────────────────────────────────
+    user_id              = request.session.get("user_id")
+    user_skills_list: list   = []
+    user_profile_struct      = {"technical": [], "tools": [], "soft": []}
+    resume_text              = ""
+    profile_domain_interest  = ""
+ 
     if user_id:
         try:
             skills_raw = (
@@ -582,162 +730,99 @@ async def get_internships(
                 .filter(UserSkills.user_id == user_id)
                 .all()
             )
-
             for sname, stype in skills_raw:
                 user_skills_list.append(sname)
                 sk_t   = (stype or "").lower()
-                bucket = ("tools" if sk_t in ("tool", "tools") else
-                          "soft" if sk_t == "soft" else
+                bucket = ("tools"     if sk_t in ("tool", "tools") else
+                          "soft"      if sk_t == "soft" else
                           "technical")
                 user_profile_struct[bucket].append(sname)
-
+ 
             resume_text = " ".join(user_skills_list)
-
+ 
             prof = db.query(UserProfile).filter(
                 UserProfile.user_id == user_id
             ).first()
-
             if prof and prof.domain_interest:
-                domain_interest = prof.domain_interest
-
-        except Exception as e:
-            print(f"Profile load error: {e}")
-
-
-    date_posted  = {"3days": "3days", "week": "week", "month": "month"}.get(
-        date_filter, "3days"
-    )
-
-    query_term   = f"internship {domain_interest}".strip() if domain_interest else "internship"
-    search_query = f"{query_term} in {city}"
-
-    num_pages = 5
-
-    jsearch_url = (
-        f"https://jsearch.p.rapidapi.com/search"
-        f"?query={search_query.replace(' ', '%20')}"
-        f"&page=1&num_pages={num_pages}&date_posted={date_posted}"
-    )
-
-    raw_jobs = []
-
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
-                jsearch_url,
-                headers={
-                    "x-rapidapi-key":  JSEARCH_API_KEY,
-                    "x-rapidapi-host": "jsearch.p.rapidapi.com",
-                }
-            )
-
-            if resp.status_code == 200:
-                raw_jobs = resp.json().get("data", [])
-            else:
-                print(f"JSearch HTTP {resp.status_code}: {resp.text[:200]}")
-
-    except Exception as e:
-        print(f"JSearch error: {e}")
-
-    semaphore = asyncio.Semaphore(10)
+                profile_domain_interest = prof.domain_interest
+        except Exception as exc:
+            print(f"Profile load error: {exc}")
+ 
+    # ── 2. Resolve domain keyword ─────────────────────────────────────────────
+    # Priority: explicit domain filter from UI > user's saved profile domain
+    domain_key     = (domain or "").strip().lower()
+    domain_kw      = DOMAIN_KEYWORDS.get(domain_key, "")
+ 
+    # Fall back to profile domain only when UI says "All" and profile has one
+    if not domain_kw and profile_domain_interest and not domain_key:
+        domain_kw = profile_domain_interest
+ 
+    # ── 3. Build query variants & page count ─────────────────────────────────
+    date_posted = {"3days": "3days", "week": "week", "month": "month"}.get(
+                  date_filter, "3days")
+    num_pages   = _PAGES_BY_FILTER.get(date_filter, 6)
+ 
+    # Domain-specific query — most targeted results
+    if domain_kw:
+        query_main  = f"{domain_kw} internship in {city}"
+    else:
+        query_main  = f"internship in {city}"
+ 
+    # Broad fallback always included — guarantees volume even for niche domains
+    query_broad = f"internship in {city}"
+ 
+    # ── 4. Fetch ALL pages concurrently ───────────────────────────────────────
+    raw_jobs: list = []
+    async with httpx.AsyncClient(timeout=20) as client:
+        fetch_tasks = [
+            _fetch_jsearch_page(client, query_main, p, date_posted)
+            for p in range(1, num_pages + 1)
+        ]
+        # Always add broad query pages to ensure 80+ job volume
+        if query_main != query_broad:
+            fetch_tasks += [
+                _fetch_jsearch_page(client, query_broad, p, date_posted)
+                for p in range(1, num_pages + 1)
+            ]
+ 
+        page_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+        for pr in page_results:
+            if isinstance(pr, list):
+                raw_jobs.extend(pr)
+ 
+    # ── 5. Deduplicate by apply_link ──────────────────────────────────────────
+    seen_links: set   = set()
+    unique_jobs: list = []
+    for job in raw_jobs:
+        key = job.get("job_apply_link") or job.get("job_id") or ""
+        if not key or key not in seen_links:
+            if key:
+                seen_links.add(key)
+            unique_jobs.append(job)
+ 
+    # ── 6. Score all jobs in parallel (CPU work in thread pool) ──────────────
     loop = asyncio.get_event_loop()
-
-    async def process_job(job):
-        async with semaphore:
-
-            title           = job.get("job_title") or ""
-            employer        = job.get("employer_name") or ""
-            location        = job.get("job_city") or job.get("job_state") or city
-            apply_link      = job.get("job_apply_link") or "#"
-            description     = job.get("job_description") or ""
-            posted_at       = job.get("job_posted_at_datetime_utc") or ""
-            employment_type = job.get("job_employment_type") or "Internship"
-            publisher       = job.get("job_publisher") or ""
-            employer_logo   = job.get("employer_logo") or ""
-
-            highlights     = job.get("job_highlights") or {}
-            qualifications = highlights.get("Qualifications") or []
-            req_skills     = [str(q) for q in qualifications[:5] if q]
-
-            match_score = 0
-            gap_sev     = "N/A"
-            missing     = {}
-
-            if user_skills_list:
-
-                job_text_blob = f"{title} {' '.join(req_skills)} {description[:3000]}"
-
-                job_skills_extracted = await loop.run_in_executor(
-                    None, ext_sk, job_text_blob
-                )
-
-                job_profile = {"technical": [], "tools": [], "soft": []}
-                for js in job_skills_extracted:
-                    sk_type = (js.get("skill_type") or "technical").lower()
-                    bucket  = ("tools" if sk_type in ("tool", "tools") else
-                               "soft" if sk_type == "soft" else
-                               "technical")
-                    name = js["skill_name"]
-                    if name not in job_profile[bucket]:
-                        job_profile[bucket].append(name)
-
-                total_job_skills = sum(len(v) for v in job_profile.values())
-
-                try:
-                    if total_job_skills == 0:
-                        sem = semantic_similarity(resume_text, job_text_blob[:1000])
-                        match_score = round(sem, 1)
-                        gap_sev     = gap_sev_fn(match_score)
-
-                    else:
-                        result = await loop.run_in_executor(
-                            None,
-                            lambda: run_matching_pipeline(
-                                user_profile=user_profile_struct,
-                                job_profile=job_profile,
-                                resume_text=resume_text,
-                                job_text=job_text_blob[:800],
-                            )
-                        )
-
-                        match_score = result["final_match_score"]
-                        gap_sev     = result["gap_severity"]
-                        missing     = {
-                            cat: skls
-                            for cat, skls in result["missing_skills"].items()
-                            if skls
-                        }
-
-                except Exception as e:
-                    print(f"Scoring error: {e}")
-                    match_score = 0
-
-            return {
-                "title": title,
-                "employer": employer,
-                "employer_logo": employer_logo,
-                "location": location,
-                "apply_link": apply_link,
-                "posted_at": posted_at,
-                "employment_type": employment_type,
-                "publisher": publisher,
-                "qualifications": req_skills,
-                "match_score": round(match_score, 1),
-                "gap_severity": gap_sev,
-                "missing_skills": missing,
-                "has_profile": bool(user_skills_list),
-            }
-
-
-    tasks = [process_job(job) for job in raw_jobs]
-    results = await asyncio.gather(*tasks)
-
+    score_futures = [
+        loop.run_in_executor(
+            _SCORE_EXECUTOR,
+            _score_job,
+            job, city, user_skills_list, user_profile_struct, resume_text,
+        )
+        for job in unique_jobs
+    ]
+    results: list = list(await asyncio.gather(*score_futures))
+ 
+    # ── 7. Sort — always show ALL jobs regardless of score ────────────────────
+    # Jobs with 0% match still appear; they're just sorted to the bottom.
     if user_skills_list:
         results.sort(key=lambda x: x["match_score"], reverse=True)
-
+    # If no profile: sort by date so freshest jobs appear first
+    else:
+        results.sort(key=lambda x: x.get("posted_at") or "", reverse=True)
+ 
     return {
-        "jobs": results,
-        "total": len(results),
-        "city": city,
-        "cities": INDIAN_CITIES
+        "jobs":   results,
+        "total":  len(results),
+        "city":   city,
+        "cities": INDIAN_CITIES,
     }
