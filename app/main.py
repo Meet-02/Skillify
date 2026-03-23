@@ -543,14 +543,102 @@ INDIAN_CITIES = [
     "Lucknow", "Noida", "Gurugram", "Indore", "Bhopal",
 ]
  
-# ── JSearch page config ───────────────────────────────────────────────────────
-# 3days → 6 pages × 10 jobs = ~60 unique jobs
-# week / month → 9 pages × 10 jobs = ~90 unique jobs (deduped across 2 queries)
-_PAGES_BY_FILTER = {"3days": 6, "week": 9, "month": 9}
+# ── Page counts per filter ────────────────────────────────────────────────────
+# Each query fetches num_pages × ~10 jobs.
+# With 2 queries running in parallel:
+#   3days  → 10 pages × 2 queries = ~100 raw → 90+ unique after dedup
+#   week   → 15 pages × 2 queries = ~150 raw → 140+ unique after dedup
+#   month  → 15 pages × 2 queries = ~150 raw → 140+ unique after dedup
+_PAGES_BY_FILTER: dict = {"3days": 10, "week": 15, "month": 15}
  
-# Persistent thread-pool for CPU-bound scoring (doesn't block the event loop)
+# ── Persistent thread-pool for CPU-bound scoring ──────────────────────────────
 from concurrent.futures import ThreadPoolExecutor
-_SCORE_EXECUTOR = ThreadPoolExecutor(max_workers=6)
+_SCORE_EXECUTOR = ThreadPoolExecutor(max_workers=8)
+ 
+# ── Domain → JSearch search keywords (module-level constant) ─────────────────
+DOMAIN_KEYWORDS: dict = {
+    "":           "",   # All Domains
+ 
+    # Tech — granular role-level
+    "frontend":   "frontend developer",
+    "backend":    "backend developer",
+    "fullstack":  "full stack developer",
+    "android":    "android developer",
+    "ios":        "ios developer swift",
+    "devops":     "devops cloud engineer",
+    "data":       "data science analyst",
+    "ml":         "machine learning AI engineer",
+    "dataeng":    "data engineer ETL pipeline",
+    "cyber":      "cybersecurity information security",
+    "uiux":       "UI UX designer",
+    "embedded":   "embedded systems IoT firmware",
+    "blockchain": "blockchain web3 solidity",
+    "qa":         "quality assurance software testing",
+    "software":   "software engineer developer",
+    "product":    "product manager",
+ 
+    # Non-tech — major domains
+    "marketing":  "digital marketing",
+    "finance":    "finance accounting",
+    "hr":         "human resources HR recruiter",
+    "sales":      "sales business development",
+    "operations": "operations supply chain",
+    "content":    "content writing copywriting",
+    "design":     "graphic design creative",
+}
+ 
+# ── Domain title-matching keywords (module-level, built once) ─────────────────
+# Used AFTER fetch to filter out off-domain noise.
+# At least ONE of these tokens must appear in the job title for the job to show.
+DOMAIN_TITLE_KEYWORDS: dict = {
+    "frontend":   {"frontend", "front-end", "react", "angular", "vue", "javascript",
+                   "html", "css", "ui developer", "web developer"},
+    "backend":    {"backend", "back-end", "nodejs", "node.js", "django", "flask",
+                   "spring", "java developer", "python developer", "api developer",
+                   "server", "php"},
+    "fullstack":  {"full stack", "fullstack", "full-stack", "mern", "mean",
+                   "react", "node"},
+    "android":    {"android", "kotlin", "mobile app", "mobile developer"},
+    "ios":        {"ios", "swift", "iphone", "apple developer"},
+    "devops":     {"devops", "cloud", "aws", "azure", "gcp", "kubernetes",
+                   "docker", "sre", "site reliability", "infrastructure"},
+    "data":       {"data science", "data scientist", "data analyst", "analytics",
+                   "business analyst", "machine learning", "python analyst"},
+    "ml":         {"machine learning", "ml engineer", "ai engineer", "deep learning",
+                   "nlp", "data scientist", "artificial intelligence"},
+    "dataeng":    {"data engineer", "etl", "pipeline", "spark", "airflow",
+                   "bigdata", "big data", "hadoop", "databricks"},
+    "uiux":       {"ui", "ux", "ui/ux", "product designer", "interaction design",
+                   "user experience", "figma", "visual design"},
+    "qa":         {"qa", "quality assurance", "testing", "tester", "sdet",
+                   "automation engineer", "test engineer"},
+    "cyber":      {"cyber", "cybersecurity", "security analyst", "penetration",
+                   "ethical hacking", "infosec", "soc analyst"},
+    "product":    {"product manager", "product management", "pm ", "apm",
+                   "associate product", "product owner"},
+    "embedded":   {"embedded", "iot", "firmware", "arduino", "raspberry",
+                   "rtos", "hardware"},
+    "blockchain": {"blockchain", "web3", "solidity", "smart contract",
+                   "ethereum", "defi", "nft", "crypto"},
+    "software":   {"software engineer", "software developer", "sde", "swe",
+                   "programmer", "developer", "engineer"},
+ 
+    # Non-tech
+    "marketing":  {"marketing", "digital marketing", "seo", "social media",
+                   "growth", "brand", "performance marketing"},
+    "finance":    {"finance", "financial", "accounting", "accountant",
+                   "ca intern", "cfa", "investment", "banking"},
+    "hr":         {"hr", "human resources", "recruitment", "recruiter",
+                   "talent acquisition", "people operations"},
+    "sales":      {"sales", "business development", "bd intern", "account manager",
+                   "client", "pre-sales"},
+    "operations": {"operations", "ops", "supply chain", "logistics",
+                   "procurement", "inventory"},
+    "content":    {"content", "writing", "copywriting", "editorial",
+                   "journalist", "blogger", "media"},
+    "design":     {"graphic design", "graphic designer", "visual design",
+                   "creative", "illustrator", "photoshop"},
+}
  
  
 async def _fetch_jsearch_page(
@@ -666,47 +754,12 @@ def _score_job(
     }
  
  
-# Domain → JSearch keyword mapping
-# Each domain has a primary search term and an optional secondary broad term
-DOMAIN_KEYWORDS: dict[str, str] = {
-    # ── All ──────────────────────────────────────────────────────────────────
-    "":           "",   # All Domains — no extra keyword
- 
-    # ── Tech (granular) ──────────────────────────────────────────────────────
-    "frontend":   "frontend developer react angular vue javascript html css",
-    "backend":    "backend developer nodejs python django flask java spring api",
-    "fullstack":  "full stack developer react nodejs javascript python",
-    "android":    "android developer kotlin java mobile app android studio",
-    "ios":        "ios developer swift swiftui xcode apple mobile",
-    "devops":     "devops cloud engineer aws azure gcp kubernetes docker ci cd",
-    "data":       "data scientist analytics python pandas numpy machine learning",
-    "ml":         "machine learning ai engineer deep learning nlp pytorch tensorflow",
-    "dataeng":    "data engineer pipeline etl spark sql bigdata hadoop airflow",
-    "cyber":      "cybersecurity ethical hacking penetration testing network security",
-    "uiux":       "ui ux designer figma product design user experience wireframe",
-    "embedded":   "embedded systems iot arduino raspberry pi firmware c cpp",
-    "blockchain": "blockchain web3 solidity smart contracts ethereum dapp",
-    "qa":         "quality assurance software testing automation selenium pytest",
-    "software":   "software engineer developer programming computer science",
-    "product":    "product manager product management agile roadmap user stories",
- 
-    # ── Non-tech (major only) ────────────────────────────────────────────────
-    "marketing":  "marketing digital marketing social media seo content strategy",
-    "finance":    "finance accounting banking financial analyst chartered accountant",
-    "hr":         "human resources hr recruiter talent acquisition payroll",
-    "sales":      "sales business development account manager client relations",
-    "operations": "operations supply chain logistics management process improvement",
-    "content":    "content writing media journalism copywriting editorial blogger",
-    "design":     "graphic design creative visual designer canva adobe illustrator",
-}
- 
- 
 @app.get("/api/internships")
 async def get_internships(
     request:     Request,
-    city:        str = "Mumbai",
-    date_filter: str = "3days",
-    domain:      str = "",          # ← NEW: domain filter from frontend dropdown
+    city:        str     = "Mumbai",
+    date_filter: str     = "3days",
+    domain:      str     = "",
     db:          Session = Depends(get_db),
 ):
     from app.models import UserSkills, Skills, UserProfile
@@ -716,11 +769,11 @@ async def get_internships(
                 "error": "JSEARCH_API_KEY not configured in .env"}
  
     # ── 1. Load user profile (one DB query) ───────────────────────────────────
-    user_id              = request.session.get("user_id")
-    user_skills_list: list   = []
-    user_profile_struct      = {"technical": [], "tools": [], "soft": []}
-    resume_text              = ""
-    profile_domain_interest  = ""
+    user_id                 = request.session.get("user_id")
+    user_skills_list: list  = []
+    user_profile_struct     = {"technical": [], "tools": [], "soft": []}
+    resume_text             = ""
+    profile_domain_interest = ""
  
     if user_id:
         try:
@@ -749,42 +802,51 @@ async def get_internships(
             print(f"Profile load error: {exc}")
  
     # ── 2. Resolve domain keyword ─────────────────────────────────────────────
-    # Priority: explicit domain filter from UI > user's saved profile domain
-    domain_key     = (domain or "").strip().lower()
-    domain_kw      = DOMAIN_KEYWORDS.get(domain_key, "")
+    # Priority: explicit UI filter > saved profile domain
+    domain_key = (domain or "").strip().lower()
+    domain_kw  = DOMAIN_KEYWORDS.get(domain_key, "")
  
-    # Fall back to profile domain only when UI says "All" and profile has one
-    if not domain_kw and profile_domain_interest and not domain_key:
+    # Fall back to profile domain only when UI says "All Domains"
+    if not domain_kw and not domain_key and profile_domain_interest:
         domain_kw = profile_domain_interest
  
-    # ── 3. Build query variants & page count ─────────────────────────────────
+    # ── 3. Build page count and query list ────────────────────────────────────
     date_posted = {"3days": "3days", "week": "week", "month": "month"}.get(
                   date_filter, "3days")
-    num_pages   = _PAGES_BY_FILTER.get(date_filter, 6)
+    num_pages   = _PAGES_BY_FILTER.get(date_filter, 10)
  
-    # Domain-specific query — most targeted results
+    # Two parallel queries per search:
+    #   query_domain  → targeted domain results  (e.g. "frontend developer internship in Mumbai")
+    #   query_broad   → broad results            (e.g. "internship in Mumbai")
+    # Together they guarantee volume: 10 pages × 2 queries × ~10 jobs = ~200 raw → 90+ after dedup
     if domain_kw:
-        query_main  = f"{domain_kw} internship in {city}"
+        query_domain = f"{domain_kw} internship in {city}"
+        query_intern = f"{domain_kw} intern {city}"
     else:
-        query_main  = f"internship in {city}"
+        query_domain = f"internship in {city}"
+        query_intern = f"intern {city}"
  
-    # Broad fallback always included — guarantees volume even for niche domains
-    query_broad = f"internship in {city}"
+    query_broad  = f"internship in {city}"          # always included for volume
+    query_fresher = f"fresher jobs in {city}"        # extra volume for Indian market
+ 
+    # Build all (query, page) pairs — fired concurrently
+    all_query_page_pairs: list = []
+    for p in range(1, num_pages + 1):
+        all_query_page_pairs.append((query_domain, p))
+        all_query_page_pairs.append((query_broad,  p))
+    # Add intern / fresher queries for first half of pages (boost volume)
+    half = max(1, num_pages // 2)
+    for p in range(1, half + 1):
+        all_query_page_pairs.append((query_intern,  p))
+        all_query_page_pairs.append((query_fresher, p))
  
     # ── 4. Fetch ALL pages concurrently ───────────────────────────────────────
     raw_jobs: list = []
     async with httpx.AsyncClient(timeout=20) as client:
         fetch_tasks = [
-            _fetch_jsearch_page(client, query_main, p, date_posted)
-            for p in range(1, num_pages + 1)
+            _fetch_jsearch_page(client, q, p, date_posted)
+            for q, p in all_query_page_pairs
         ]
-        # Always add broad query pages to ensure 80+ job volume
-        if query_main != query_broad:
-            fetch_tasks += [
-                _fetch_jsearch_page(client, query_broad, p, date_posted)
-                for p in range(1, num_pages + 1)
-            ]
- 
         page_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
         for pr in page_results:
             if isinstance(pr, list):
@@ -800,7 +862,24 @@ async def get_internships(
                 seen_links.add(key)
             unique_jobs.append(job)
  
-    # ── 6. Score all jobs in parallel (CPU work in thread pool) ──────────────
+    # ── 6. Domain relevance filter ────────────────────────────────────────────
+    # Only applied when a specific domain is selected.
+    # Checks job TITLE (strict) — keeps the list domain-focused.
+    # Jobs with no title or very short title pass through to avoid over-filtering.
+    if domain_key and domain_key in DOMAIN_TITLE_KEYWORDS:
+        title_kws = DOMAIN_TITLE_KEYWORDS[domain_key]
+ 
+        def _is_relevant(job_raw: dict) -> bool:
+            title = (job_raw.get("job_title") or "").lower()
+            desc  = (job_raw.get("job_description") or "")[:400].lower()
+            combined = title + " " + desc
+            return any(kw in combined for kw in title_kws)
+ 
+        filtered = [j for j in unique_jobs if _is_relevant(j)]
+        # Safety net: if filter removes too many jobs, fall back to unfiltered
+        unique_jobs = filtered if len(filtered) >= 20 else unique_jobs
+ 
+    # ── 7. Score all jobs in parallel (CPU work in thread pool) ──────────────
     loop = asyncio.get_event_loop()
     score_futures = [
         loop.run_in_executor(
@@ -812,11 +891,9 @@ async def get_internships(
     ]
     results: list = list(await asyncio.gather(*score_futures))
  
-    # ── 7. Sort — always show ALL jobs regardless of score ────────────────────
-    # Jobs with 0% match still appear; they're just sorted to the bottom.
+    # ── 8. Sort — all jobs always shown regardless of score ───────────────────
     if user_skills_list:
         results.sort(key=lambda x: x["match_score"], reverse=True)
-    # If no profile: sort by date so freshest jobs appear first
     else:
         results.sort(key=lambda x: x.get("posted_at") or "", reverse=True)
  
