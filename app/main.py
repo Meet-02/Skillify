@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Form, Depends, UploadFile, File, HTTPException
+from fastapi import FastAPI, Request, Form, Depends, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -903,3 +903,28 @@ async def get_internships(
         "city":   city,
         "cities": INDIAN_CITIES,
     }
+
+
+@app.post("/jobs/sync")
+async def sync_jobs_endpoint(
+    request: Request,
+    domain: str = "",
+    background_tasks: BackgroundTasks,
+):
+    """
+    Queues job scraping for the logged-in user.
+    Scraper updates `User_Company_Record` and increments `Trending_Skills`.
+    """
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    from app.services.scraper_service import sync_jobs_task
+
+    background_tasks.add_task(
+        sync_jobs_task,
+        user_id=int(user_id),
+        domain=domain or "",
+    )
+
+    return {"status": "queued", "jobs_sync": {"user_id": int(user_id)}}
