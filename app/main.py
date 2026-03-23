@@ -762,145 +762,66 @@ async def get_internships(
     domain:      str     = "",
     db:          Session = Depends(get_db),
 ):
-    from app.models import UserSkills, Skills, UserProfile
- 
-    if not JSEARCH_API_KEY:
-        return {"jobs": [], "total": 0, "city": city, "cities": INDIAN_CITIES,
-                "error": "JSEARCH_API_KEY not configured in .env"}
- 
-    # ── 1. Load user profile (one DB query) ───────────────────────────────────
-    user_id                 = request.session.get("user_id")
-    user_skills_list: list  = []
-    user_profile_struct     = {"technical": [], "tools": [], "soft": []}
-    resume_text             = ""
-    profile_domain_interest = ""
- 
-    if user_id:
-        try:
-            skills_raw = (
-                db.query(Skills.skill_name, Skills.skill_type)
-                .join(UserSkills, Skills.skill_id == UserSkills.skill_id)
-                .filter(UserSkills.user_id == user_id)
-                .all()
+    from app.services.scraper_service import scrape_jobs_for_user_task
+
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user_id_int = int(user_id)
+    # Offload Selenium scraping to a thread to avoid blocking the async event loop.
+    jobs = await asyncio.to_thread(
+        scrape_jobs_for_user_task,
+        user_id_int,
+        domain or "",
+        city or "Mumbai",
+        40,
+    )
+
+    # Merge persisted match/gap fields from DB so the response reflects saved rows.
+    from app.models import UserCompanyRecord
+    from sqlalchemy import and_, or_
+
+    keys = {(j.get("title"), j.get("employer")) for j in jobs}
+    keys = {(t, c) for (t, c) in keys if t and c}
+
+    if keys:
+        or_clauses = [
+            and_(
+                UserCompanyRecord.role_title == title,
+                UserCompanyRecord.company_name == company,
             )
-            for sname, stype in skills_raw:
-                user_skills_list.append(sname)
-                sk_t   = (stype or "").lower()
-                bucket = ("tools"     if sk_t in ("tool", "tools") else
-                          "soft"      if sk_t == "soft" else
-                          "technical")
-                user_profile_struct[bucket].append(sname)
- 
-            resume_text = " ".join(user_skills_list)
- 
-            prof = db.query(UserProfile).filter(
-                UserProfile.user_id == user_id
-            ).first()
-            if prof and prof.domain_interest:
-                profile_domain_interest = prof.domain_interest
-        except Exception as exc:
-            print(f"Profile load error: {exc}")
- 
-    # ── 2. Resolve domain keyword ─────────────────────────────────────────────
-    # Priority: explicit UI filter > saved profile domain
-    domain_key = (domain or "").strip().lower()
-    domain_kw  = DOMAIN_KEYWORDS.get(domain_key, "")
- 
-    # Fall back to profile domain only when UI says "All Domains"
-    if not domain_kw and not domain_key and profile_domain_interest:
-        domain_kw = profile_domain_interest
- 
-    # ── 3. Build page count and query list ────────────────────────────────────
-    date_posted = {"3days": "3days", "week": "week", "month": "month"}.get(
-                  date_filter, "3days")
-    num_pages   = _PAGES_BY_FILTER.get(date_filter, 10)
- 
-    # Two parallel queries per search:
-    #   query_domain  → targeted domain results  (e.g. "frontend developer internship in Mumbai")
-    #   query_broad   → broad results            (e.g. "internship in Mumbai")
-    # Together they guarantee volume: 10 pages × 2 queries × ~10 jobs = ~200 raw → 90+ after dedup
-    if domain_kw:
-        query_domain = f"{domain_kw} internship in {city}"
-        query_intern = f"{domain_kw} intern {city}"
-    else:
-        query_domain = f"internship in {city}"
-        query_intern = f"intern {city}"
- 
-    query_broad  = f"internship in {city}"          # always included for volume
-    query_fresher = f"fresher jobs in {city}"        # extra volume for Indian market
- 
-    # Build all (query, page) pairs — fired concurrently
-    all_query_page_pairs: list = []
-    for p in range(1, num_pages + 1):
-        all_query_page_pairs.append((query_domain, p))
-        all_query_page_pairs.append((query_broad,  p))
-    # Add intern / fresher queries for first half of pages (boost volume)
-    half = max(1, num_pages // 2)
-    for p in range(1, half + 1):
-        all_query_page_pairs.append((query_intern,  p))
-        all_query_page_pairs.append((query_fresher, p))
- 
-    # ── 4. Fetch ALL pages concurrently ───────────────────────────────────────
-    raw_jobs: list = []
-    async with httpx.AsyncClient(timeout=20) as client:
-        fetch_tasks = [
-            _fetch_jsearch_page(client, q, p, date_posted)
-            for q, p in all_query_page_pairs
+            for (title, company) in keys
         ]
-        page_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
-        for pr in page_results:
-            if isinstance(pr, list):
-                raw_jobs.extend(pr)
- 
-    # ── 5. Deduplicate by apply_link ──────────────────────────────────────────
-    seen_links: set   = set()
-    unique_jobs: list = []
-    for job in raw_jobs:
-        key = job.get("job_apply_link") or job.get("job_id") or ""
-        if not key or key not in seen_links:
-            if key:
-                seen_links.add(key)
-            unique_jobs.append(job)
- 
-    # ── 6. Domain relevance filter ────────────────────────────────────────────
-    # Only applied when a specific domain is selected.
-    # Checks job TITLE (strict) — keeps the list domain-focused.
-    # Jobs with no title or very short title pass through to avoid over-filtering.
-    if domain_key and domain_key in DOMAIN_TITLE_KEYWORDS:
-        title_kws = DOMAIN_TITLE_KEYWORDS[domain_key]
- 
-        def _is_relevant(job_raw: dict) -> bool:
-            title = (job_raw.get("job_title") or "").lower()
-            desc  = (job_raw.get("job_description") or "")[:400].lower()
-            combined = title + " " + desc
-            return any(kw in combined for kw in title_kws)
- 
-        filtered = [j for j in unique_jobs if _is_relevant(j)]
-        # Safety net: if filter removes too many jobs, fall back to unfiltered
-        unique_jobs = filtered if len(filtered) >= 20 else unique_jobs
- 
-    # ── 7. Score all jobs in parallel (CPU work in thread pool) ──────────────
-    loop = asyncio.get_event_loop()
-    score_futures = [
-        loop.run_in_executor(
-            _SCORE_EXECUTOR,
-            _score_job,
-            job, city, user_skills_list, user_profile_struct, resume_text,
+        persisted = (
+            db.query(UserCompanyRecord)
+            .filter(
+                UserCompanyRecord.user_id == user_id_int,
+                UserCompanyRecord.application_status == "viewed",
+            )
+            .filter(or_(*or_clauses))
+            .all()
         )
-        for job in unique_jobs
-    ]
-    results: list = list(await asyncio.gather(*score_futures))
- 
-    # ── 8. Sort — all jobs always shown regardless of score ───────────────────
-    if user_skills_list:
-        results.sort(key=lambda x: x["match_score"], reverse=True)
-    else:
-        results.sort(key=lambda x: x.get("posted_at") or "", reverse=True)
- 
+
+        persisted_map = {
+            (p.role_title, p.company_name): p
+            for p in persisted
+        }
+
+        for job in jobs:
+            key = (job.get("title"), job.get("employer"))
+            rec = persisted_map.get(key)
+            if not rec:
+                continue
+            job["match_score"] = int(rec.match_score or 0)
+            job["gap_severity"] = rec.gap_severity if job.get("has_profile") else "N/A"
+            if rec.created_at is not None:
+                job["posted_at"] = rec.created_at.isoformat()
+
     return {
-        "jobs":   results,
-        "total":  len(results),
-        "city":   city,
+        "jobs": jobs,
+        "total": len(jobs),
+        "city": city,
         "cities": INDIAN_CITIES,
     }
 
@@ -909,11 +830,11 @@ async def get_internships(
 async def sync_jobs_endpoint(
     request: Request,
     domain: str = "",
-    background_tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """
     Queues job scraping for the logged-in user.
-    Scraper updates `User_Company_Record` and increments `Trending_Skills`.
+    Scraper updates `User_Company_Record` (application_status='viewed').
     """
     user_id = request.session.get("user_id")
     if not user_id:

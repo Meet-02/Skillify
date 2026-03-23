@@ -25,5 +25,4 @@ httpx>=0.27.0
 selenium
 webdriver-manager
 beautifulsoup4
-pandas
 SQLAlchemy
