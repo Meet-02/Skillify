@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Form, Depends, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Request, Form, Depends, UploadFile, File, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -543,108 +543,15 @@ INDIAN_CITIES = [
     "Lucknow", "Noida", "Gurugram", "Indore", "Bhopal",
 ]
  
-# ─────────────────────────────────────────────────────────────────────────────
-#  JOB FETCH STRATEGY
-#  ─────────────────────────────────────────────────────────────────────────────
-#  Source priority (all run in PARALLEL with asyncio):
-#    1. JSearch  (if JSEARCH_API_KEY set)  — best Indian results
-#    2. Adzuna   (if ADZUNA_APP_ID set)    — key already in .env, 10k/month free
-#
-#  Page counts  →  raw jobs fetched before dedup:
-#    3days : 10 pages × 2 queries × 2 sources  =  ~200-400 raw  →  90+ unique
-#    week  : 15 pages × 2 queries × 2 sources  =  ~300-600 raw  →  140+ unique
-#    month : 15 pages × 2 queries × 2 sources  =  ~300-600 raw  →  140+ unique
-#
-#  NO Selenium, NO web scraping — pure async HTTP, takes 3-6 seconds total.
-# ─────────────────────────────────────────────────────────────────────────────
+# ── JSearch page config ───────────────────────────────────────────────────────
+# 3days → 6 pages × 10 jobs = ~60 unique jobs
+# week / month → 9 pages × 10 jobs = ~90 unique jobs (deduped across 2 queries)
+_PAGES_BY_FILTER = {"3days": 6, "week": 9, "month": 9}
  
-_PAGES_BY_FILTER: dict = {"3days": 10, "week": 15, "month": 15}
- 
+# Persistent thread-pool for CPU-bound scoring (doesn't block the event loop)
 from concurrent.futures import ThreadPoolExecutor
-_SCORE_EXECUTOR = ThreadPoolExecutor(max_workers=8)
+_SCORE_EXECUTOR = ThreadPoolExecutor(max_workers=6)
  
-# ── Domain → search keyword ───────────────────────────────────────────────────
-DOMAIN_KEYWORDS: dict = {
-    "":           "",
-    # Tech
-    "frontend":   "frontend developer",
-    "backend":    "backend developer",
-    "fullstack":  "full stack developer",
-    "android":    "android developer",
-    "ios":        "ios developer swift",
-    "devops":     "devops cloud engineer",
-    "data":       "data science analyst",
-    "ml":         "machine learning AI engineer",
-    "dataeng":    "data engineer ETL pipeline",
-    "cyber":      "cybersecurity information security",
-    "uiux":       "UI UX designer",
-    "embedded":   "embedded systems IoT firmware",
-    "blockchain": "blockchain web3 solidity",
-    "qa":         "quality assurance software testing",
-    "software":   "software engineer developer",
-    "product":    "product manager",
-    # Non-tech
-    "marketing":  "digital marketing",
-    "finance":    "finance accounting",
-    "hr":         "human resources HR recruiter",
-    "sales":      "sales business development",
-    "operations": "operations supply chain",
-    "content":    "content writing copywriting",
-    "design":     "graphic design creative",
-}
- 
-# ── Domain title-filter keywords (module-level, evaluated once) ───────────────
-DOMAIN_TITLE_KEYWORDS: dict = {
-    "frontend":   {"frontend", "front-end", "react", "angular", "vue",
-                   "javascript", "html", "css", "ui developer", "web developer"},
-    "backend":    {"backend", "back-end", "nodejs", "node.js", "django",
-                   "flask", "spring", "java developer", "python developer",
-                   "api developer", "server", "php"},
-    "fullstack":  {"full stack", "fullstack", "full-stack", "mern", "mean"},
-    "android":    {"android", "kotlin", "mobile app", "mobile developer"},
-    "ios":        {"ios", "swift", "iphone", "apple developer"},
-    "devops":     {"devops", "cloud", "aws", "azure", "gcp", "kubernetes",
-                   "docker", "sre", "site reliability", "infrastructure"},
-    "data":       {"data science", "data scientist", "data analyst", "analytics",
-                   "business analyst", "machine learning", "python analyst"},
-    "ml":         {"machine learning", "ml engineer", "ai engineer",
-                   "deep learning", "nlp", "data scientist", "artificial intelligence"},
-    "dataeng":    {"data engineer", "etl", "pipeline", "spark", "airflow",
-                   "bigdata", "big data", "hadoop", "databricks"},
-    "uiux":       {"ui", "ux", "ui/ux", "product designer", "interaction design",
-                   "user experience", "figma", "visual design"},
-    "qa":         {"qa", "quality assurance", "testing", "tester", "sdet",
-                   "automation engineer", "test engineer"},
-    "cyber":      {"cyber", "cybersecurity", "security analyst", "penetration",
-                   "ethical hacking", "infosec", "soc analyst"},
-    "product":    {"product manager", "product management", "pm ", "apm",
-                   "associate product", "product owner"},
-    "embedded":   {"embedded", "iot", "firmware", "arduino", "raspberry",
-                   "rtos", "hardware"},
-    "blockchain": {"blockchain", "web3", "solidity", "smart contract",
-                   "ethereum", "defi", "nft", "crypto"},
-    "software":   {"software engineer", "software developer", "sde", "swe",
-                   "programmer", "developer", "engineer"},
-    "marketing":  {"marketing", "digital marketing", "seo", "social media",
-                   "growth", "brand", "performance marketing"},
-    "finance":    {"finance", "financial", "accounting", "accountant",
-                   "ca intern", "cfa", "investment", "banking"},
-    "hr":         {"hr", "human resources", "recruitment", "recruiter",
-                   "talent acquisition", "people operations"},
-    "sales":      {"sales", "business development", "bd intern",
-                   "account manager", "client", "pre-sales"},
-    "operations": {"operations", "ops", "supply chain", "logistics",
-                   "procurement", "inventory"},
-    "content":    {"content", "writing", "copywriting", "editorial",
-                   "journalist", "blogger", "media"},
-    "design":     {"graphic design", "graphic designer", "visual design",
-                   "creative", "illustrator", "photoshop"},
-}
- 
- 
-# ─────────────────────────────────────────────────────────────────────────────
-#  SOURCE 1 — JSearch (RapidAPI)
-# ─────────────────────────────────────────────────────────────────────────────
  
 async def _fetch_jsearch_page(
     client: httpx.AsyncClient,
@@ -652,7 +559,7 @@ async def _fetch_jsearch_page(
     page: int,
     date_posted: str,
 ) -> list:
-    """Fetch one JSearch result page. Returns raw JSearch job list on success."""
+    """Fetch one JSearch result page. Returns raw job list (empty on any error)."""
     url = (
         "https://jsearch.p.rapidapi.com/search"
         f"?query={query.replace(' ', '%20')}"
@@ -665,88 +572,11 @@ async def _fetch_jsearch_page(
         }, timeout=20)
         if resp.status_code == 200:
             return resp.json().get("data", [])
-        print(f"JSearch p{page} HTTP {resp.status_code}")
+        print(f"JSearch page {page} HTTP {resp.status_code}")
     except Exception as exc:
-        print(f"JSearch p{page} error: {exc}")
+        print(f"JSearch page {page} error: {exc}")
     return []
  
- 
-def _normalise_jsearch(job: dict, city: str) -> dict:
-    """Convert a raw JSearch job dict to the common internal format."""
-    highlights     = job.get("job_highlights") or {}
-    qualifications = highlights.get("Qualifications") or []
-    return {
-        # fields used by _score_job and the frontend
-        "job_title":                    job.get("job_title")           or "",
-        "employer_name":                job.get("employer_name")        or "",
-        "employer_logo":                job.get("employer_logo")        or "",
-        "job_city":                     job.get("job_city") or job.get("job_state") or city,
-        "job_apply_link":               job.get("job_apply_link")       or "#",
-        "job_description":              job.get("job_description")     or "",
-        "job_posted_at_datetime_utc":   job.get("job_posted_at_datetime_utc") or "",
-        "job_employment_type":          job.get("job_employment_type")  or "Internship",
-        "job_publisher":                job.get("job_publisher")        or "JSearch",
-        "qualifications":               [str(q) for q in qualifications[:5] if q],
-        "_source":                      "jsearch",
-    }
- 
- 
-# ─────────────────────────────────────────────────────────────────────────────
-#  SOURCE 2 — Adzuna (already configured in .env, 10 000 free calls/month)
-# ─────────────────────────────────────────────────────────────────────────────
- 
-async def _fetch_adzuna_page(
-    client: httpx.AsyncClient,
-    query: str,
-    city: str,
-    page: int,
-) -> list:
-    """Fetch one Adzuna result page. Returns normalised job dicts."""
-    if not ADZUNA_APP_ID or not ADZUNA_KEY:
-        return []
-    try:
-        resp = await client.get(
-            f"https://api.adzuna.com/v1/api/jobs/{ADZUNA_COUNTRY}/search/{page}",
-            params={
-                "app_id":       ADZUNA_APP_ID,
-                "app_key":      ADZUNA_KEY,
-                "what":         f"{query} internship",
-                "where":        city,
-                "results_per_page": 10,
-                "content-type": "application/json",
-            },
-            timeout=20,
-        )
-        if resp.status_code == 200:
-            raw = resp.json().get("results", [])
-            return [_normalise_adzuna(j, city) for j in raw]
-        print(f"Adzuna p{page} HTTP {resp.status_code}")
-    except Exception as exc:
-        print(f"Adzuna p{page} error: {exc}")
-    return []
- 
- 
-def _normalise_adzuna(job: dict, city: str) -> dict:
-    """Convert a raw Adzuna result to the common internal format."""
-    desc = job.get("description") or ""
-    return {
-        "job_title":                    job.get("title")                or "",
-        "employer_name":                (job.get("company") or {}).get("display_name", "") or "",
-        "employer_logo":                "",
-        "job_city":                     (job.get("location") or {}).get("display_name", city),
-        "job_apply_link":               job.get("redirect_url")         or "#",
-        "job_description":              desc,
-        "job_posted_at_datetime_utc":   job.get("created")              or "",
-        "job_employment_type":          "Internship",
-        "job_publisher":                "Adzuna",
-        "qualifications":               [],
-        "_source":                      "adzuna",
-    }
- 
- 
-# ─────────────────────────────────────────────────────────────────────────────
-#  SCORING — runs in ThreadPoolExecutor, never blocks event loop
-# ─────────────────────────────────────────────────────────────────────────────
  
 def _score_job(
     job_raw: dict,
@@ -755,19 +585,26 @@ def _score_job(
     user_profile_struct: dict,
     resume_text: str,
 ) -> dict:
+    """
+    CPU-bound work — skill extraction + match scoring for one job.
+    Runs inside ThreadPoolExecutor so the async event loop stays unblocked.
+    """
     from app.services.skill_extractor import extract_skills as ext_sk
     from app.services.scoring_model import semantic_similarity, gap_severity as gap_sev_fn
  
-    title           = job_raw.get("job_title")                  or ""
-    employer        = job_raw.get("employer_name")               or ""
-    employer_logo   = job_raw.get("employer_logo")               or ""
-    location        = job_raw.get("job_city")                    or city
-    apply_link      = job_raw.get("job_apply_link")              or "#"
-    description     = job_raw.get("job_description")            or ""
+    title           = job_raw.get("job_title")           or ""
+    employer        = job_raw.get("employer_name")        or ""
+    location        = job_raw.get("job_city") or job_raw.get("job_state") or city
+    apply_link      = job_raw.get("job_apply_link")       or "#"
+    description     = job_raw.get("job_description")     or ""
     posted_at       = job_raw.get("job_posted_at_datetime_utc") or ""
-    employment_type = job_raw.get("job_employment_type")         or "Internship"
-    publisher       = job_raw.get("job_publisher")               or ""
-    req_skills      = job_raw.get("qualifications")              or []
+    employment_type = job_raw.get("job_employment_type")  or "Internship"
+    publisher       = job_raw.get("job_publisher")        or ""
+    employer_logo   = job_raw.get("employer_logo")        or ""
+ 
+    highlights     = job_raw.get("job_highlights") or {}
+    qualifications = highlights.get("Qualifications") or []
+    req_skills     = [str(q) for q in qualifications[:5] if q]
  
     match_score = 0
     gap_sev     = "N/A"
@@ -829,26 +666,61 @@ def _score_job(
     }
  
  
-# ─────────────────────────────────────────────────────────────────────────────
-#  MAIN ENDPOINT
-# ─────────────────────────────────────────────────────────────────────────────
+# Domain → JSearch keyword mapping
+# Each domain has a primary search term and an optional secondary broad term
+DOMAIN_KEYWORDS: dict[str, str] = {
+    # ── All ──────────────────────────────────────────────────────────────────
+    "":           "",   # All Domains — no extra keyword
+ 
+    # ── Tech (granular) ──────────────────────────────────────────────────────
+    "frontend":   "frontend developer react angular vue javascript html css",
+    "backend":    "backend developer nodejs python django flask java spring api",
+    "fullstack":  "full stack developer react nodejs javascript python",
+    "android":    "android developer kotlin java mobile app android studio",
+    "ios":        "ios developer swift swiftui xcode apple mobile",
+    "devops":     "devops cloud engineer aws azure gcp kubernetes docker ci cd",
+    "data":       "data scientist analytics python pandas numpy machine learning",
+    "ml":         "machine learning ai engineer deep learning nlp pytorch tensorflow",
+    "dataeng":    "data engineer pipeline etl spark sql bigdata hadoop airflow",
+    "cyber":      "cybersecurity ethical hacking penetration testing network security",
+    "uiux":       "ui ux designer figma product design user experience wireframe",
+    "embedded":   "embedded systems iot arduino raspberry pi firmware c cpp",
+    "blockchain": "blockchain web3 solidity smart contracts ethereum dapp",
+    "qa":         "quality assurance software testing automation selenium pytest",
+    "software":   "software engineer developer programming computer science",
+    "product":    "product manager product management agile roadmap user stories",
+ 
+    # ── Non-tech (major only) ────────────────────────────────────────────────
+    "marketing":  "marketing digital marketing social media seo content strategy",
+    "finance":    "finance accounting banking financial analyst chartered accountant",
+    "hr":         "human resources hr recruiter talent acquisition payroll",
+    "sales":      "sales business development account manager client relations",
+    "operations": "operations supply chain logistics management process improvement",
+    "content":    "content writing media journalism copywriting editorial blogger",
+    "design":     "graphic design creative visual designer canva adobe illustrator",
+}
+ 
  
 @app.get("/api/internships")
 async def get_internships(
     request:     Request,
-    city:        str     = "Mumbai",
-    date_filter: str     = "3days",
-    domain:      str     = "",
+    city:        str = "Mumbai",
+    date_filter: str = "3days",
+    domain:      str = "",          # ← NEW: domain filter from frontend dropdown
     db:          Session = Depends(get_db),
 ):
     from app.models import UserSkills, Skills, UserProfile
  
-    # ── 1. Load user profile ──────────────────────────────────────────────────
-    user_id                 = request.session.get("user_id")
-    user_skills_list: list  = []
-    user_profile_struct     = {"technical": [], "tools": [], "soft": []}
-    resume_text             = ""
-    profile_domain_interest = ""
+    if not JSEARCH_API_KEY:
+        return {"jobs": [], "total": 0, "city": city, "cities": INDIAN_CITIES,
+                "error": "JSEARCH_API_KEY not configured in .env"}
+ 
+    # ── 1. Load user profile (one DB query) ───────────────────────────────────
+    user_id              = request.session.get("user_id")
+    user_skills_list: list   = []
+    user_profile_struct      = {"technical": [], "tools": [], "soft": []}
+    resume_text              = ""
+    profile_domain_interest  = ""
  
     if user_id:
         try:
@@ -865,6 +737,7 @@ async def get_internships(
                           "soft"      if sk_t == "soft" else
                           "technical")
                 user_profile_struct[bucket].append(sname)
+ 
             resume_text = " ".join(user_skills_list)
  
             prof = db.query(UserProfile).filter(
@@ -876,91 +749,58 @@ async def get_internships(
             print(f"Profile load error: {exc}")
  
     # ── 2. Resolve domain keyword ─────────────────────────────────────────────
-    domain_key = (domain or "").strip().lower()
-    domain_kw  = DOMAIN_KEYWORDS.get(domain_key, "")
-    if not domain_kw and not domain_key and profile_domain_interest:
+    # Priority: explicit domain filter from UI > user's saved profile domain
+    domain_key     = (domain or "").strip().lower()
+    domain_kw      = DOMAIN_KEYWORDS.get(domain_key, "")
+ 
+    # Fall back to profile domain only when UI says "All" and profile has one
+    if not domain_kw and profile_domain_interest and not domain_key:
         domain_kw = profile_domain_interest
  
-    # ── 3. Build queries and page counts ─────────────────────────────────────
+    # ── 3. Build query variants & page count ─────────────────────────────────
     date_posted = {"3days": "3days", "week": "week", "month": "month"}.get(
                   date_filter, "3days")
-    num_pages   = _PAGES_BY_FILTER.get(date_filter, 10)
+    num_pages   = _PAGES_BY_FILTER.get(date_filter, 6)
  
-    # Two query variants per source — domain-specific + broad fallback
+    # Domain-specific query — most targeted results
     if domain_kw:
-        q_domain = f"{domain_kw} internship in {city}"
-        q_intern = f"{domain_kw} intern {city}"
+        query_main  = f"{domain_kw} internship in {city}"
     else:
-        q_domain = f"internship in {city}"
-        q_intern = f"intern {city}"
-    q_broad   = f"internship in {city}"
-    q_fresher = f"fresher jobs in {city}"
+        query_main  = f"internship in {city}"
  
-    half = max(1, num_pages // 2)
+    # Broad fallback always included — guarantees volume even for niche domains
+    query_broad = f"internship in {city}"
  
-    # ── 4. Fetch from ALL sources concurrently ────────────────────────────────
+    # ── 4. Fetch ALL pages concurrently ───────────────────────────────────────
     raw_jobs: list = []
- 
     async with httpx.AsyncClient(timeout=20) as client:
-        fetch_tasks = []
- 
-        # JSearch tasks (if key configured)
-        if JSEARCH_API_KEY:
-            for p in range(1, num_pages + 1):
-                fetch_tasks.append(_fetch_jsearch_page(client, q_domain, p, date_posted))
-                fetch_tasks.append(_fetch_jsearch_page(client, q_broad,  p, date_posted))
-            for p in range(1, half + 1):
-                fetch_tasks.append(_fetch_jsearch_page(client, q_intern,  p, date_posted))
-                fetch_tasks.append(_fetch_jsearch_page(client, q_fresher, p, date_posted))
- 
-        # Adzuna tasks (if keys configured — already in .env)
-        if ADZUNA_APP_ID and ADZUNA_KEY:
-            adzuna_kw = domain_kw or "internship"
-            for p in range(1, num_pages + 1):
-                fetch_tasks.append(_fetch_adzuna_page(client, adzuna_kw, city, p))
-            for p in range(1, half + 1):
-                fetch_tasks.append(_fetch_adzuna_page(client, "internship", city, p))
- 
-        if not fetch_tasks:
-            return {"jobs": [], "total": 0, "city": city, "cities": INDIAN_CITIES,
-                    "error": "No API keys configured. Add JSEARCH_API_KEY or ADZUNA_APP_ID to .env"}
+        fetch_tasks = [
+            _fetch_jsearch_page(client, query_main, p, date_posted)
+            for p in range(1, num_pages + 1)
+        ]
+        # Always add broad query pages to ensure 80+ job volume
+        if query_main != query_broad:
+            fetch_tasks += [
+                _fetch_jsearch_page(client, query_broad, p, date_posted)
+                for p in range(1, num_pages + 1)
+            ]
  
         page_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
- 
         for pr in page_results:
             if isinstance(pr, list):
-                # Normalise JSearch raw dicts that haven't been normalised yet
-                for item in pr:
-                    if isinstance(item, dict):
-                        if "_source" not in item:
-                            raw_jobs.append(_normalise_jsearch(item, city))
-                        else:
-                            raw_jobs.append(item)
+                raw_jobs.extend(pr)
  
     # ── 5. Deduplicate by apply_link ──────────────────────────────────────────
     seen_links: set   = set()
     unique_jobs: list = []
     for job in raw_jobs:
-        key = job.get("job_apply_link") or ""
+        key = job.get("job_apply_link") or job.get("job_id") or ""
         if not key or key not in seen_links:
             if key:
                 seen_links.add(key)
             unique_jobs.append(job)
  
-    # ── 6. Domain relevance filter ────────────────────────────────────────────
-    if domain_key and domain_key in DOMAIN_TITLE_KEYWORDS:
-        title_kws = DOMAIN_TITLE_KEYWORDS[domain_key]
- 
-        def _is_relevant(j: dict) -> bool:
-            title = (j.get("job_title") or "").lower()
-            desc  = (j.get("job_description") or "")[:400].lower()
-            return any(kw in title + " " + desc for kw in title_kws)
- 
-        filtered = [j for j in unique_jobs if _is_relevant(j)]
-        # Safety net: keep unfiltered if domain filter is too aggressive
-        unique_jobs = filtered if len(filtered) >= 20 else unique_jobs
- 
-    # ── 7. Score all jobs in parallel (CPU work in thread pool) ──────────────
+    # ── 6. Score all jobs in parallel (CPU work in thread pool) ──────────────
     loop = asyncio.get_event_loop()
     score_futures = [
         loop.run_in_executor(
@@ -972,9 +812,11 @@ async def get_internships(
     ]
     results: list = list(await asyncio.gather(*score_futures))
  
-    # ── 8. Sort ───────────────────────────────────────────────────────────────
+    # ── 7. Sort — always show ALL jobs regardless of score ────────────────────
+    # Jobs with 0% match still appear; they're just sorted to the bottom.
     if user_skills_list:
         results.sort(key=lambda x: x["match_score"], reverse=True)
+    # If no profile: sort by date so freshest jobs appear first
     else:
         results.sort(key=lambda x: x.get("posted_at") or "", reverse=True)
  
