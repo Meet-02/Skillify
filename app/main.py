@@ -763,3 +763,83 @@ async def get_internships(
         #     "missing_skills": missing,
         #     "has_profile":    bool(user_skills_list),
         # })
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Unified Jobs API  (Internshala + Indeed + JSearch — parallel)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/jobs")
+async def get_jobs_unified(
+    request:     Request,
+    city:        str = "Mumbai",
+    domain:      str = "",
+    sources:     str = "internshala,indeed,jsearch",   # comma-separated
+    db:          Session = Depends(get_db),
+):
+    """
+    Parallel job aggregator endpoint.
+
+    Query params:
+      city     — e.g. Mumbai, Delhi, Bangalore
+      domain   — e.g. android, backend, fullstack  (see DOMAIN_KEYWORDS)
+      sources  — comma list of: internshala, indeed, jsearch
+
+    Returns jobs sorted by match_score descending.
+    Caches results to CSV in tmp/jobs_cache/.
+    """
+    from app.services.job_scraper_service import aggregate_jobs
+    from app.models import UserSkills, Skills, UserProfile
+
+    user_id = request.session.get("user_id")
+
+    # Build user profile for scoring
+    user_profile_struct = {"technical": [], "tools": [], "soft": []}
+    resume_text = ""
+
+    if user_id:
+        skills_raw = (
+            db.query(Skills.skill_name, Skills.skill_type)
+            .join(UserSkills, Skills.skill_id == UserSkills.skill_id)
+            .filter(UserSkills.user_id == user_id)
+            .all()
+        )
+        for sname, stype in skills_raw:
+            sk_t   = (stype or "").lower()
+            bucket = (
+                "tools"     if sk_t in ("tool", "tools") else
+                "soft"      if sk_t == "soft"             else
+                "technical"
+            )
+            user_profile_struct[bucket].append(sname)
+        resume_text = " ".join(
+            user_profile_struct["technical"] +
+            user_profile_struct["tools"] +
+            user_profile_struct["soft"]
+        )
+
+    # Parse sources list
+    source_list = [s.strip().lower() for s in sources.split(",") if s.strip()]
+
+    result = await aggregate_jobs(
+        domain       = domain,
+        city         = city,
+        user_profile = user_profile_struct,
+        resume_text  = resume_text,
+        sources      = source_list,
+    )
+
+    # Strip heavy fields before sending to frontend
+    for job in result["jobs"]:
+        job.pop("description", None)
+        job.pop("missing_skills", None)
+        if isinstance(job.get("skills"), list):
+            job["skills"] = job["skills"][:12]   # cap skills shown
+
+    return {
+        "jobs":        result["jobs"],
+        "total":       result["total"],
+        "csv_path":    result["csv_path"],
+        "sources_hit": result["sources_hit"],
+        "city":        city,
+        "domain":      domain,
+    }
