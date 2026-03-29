@@ -116,6 +116,122 @@ if __name__ == "__main__":
     User = input("Enter the skill you want to search for (e.g., python): ")
     start_scraping_parallel(User, "india")
 
+
+# ─────────────────────────────────────────────────────────────────
+# Indian cities (for resilient location handling)
+# ─────────────────────────────────────────────────────────────────
+INDIAN_CITIES = {
+    "mumbai", "delhi", "bangalore", "bengaluru", "hyderabad", "chennai",
+    "pune", "kolkata", "ahmedabad", "jaipur", "surat", "lucknow",
+    "noida", "gurugram", "gurgaon", "indore", "bhopal",
+}
+
+
+# ─────────────────────────────────────────────────────────────────
+# FAST WRAPPER  (used by job_scraper_service.py aggregate pipeline)
+# ─────────────────────────────────────────────────────────────────
+
+def scrape_internshala_fast(keyword: str, city: str, date_filter: str = "month") -> list[dict]:
+    """
+    Lightweight Internshala scraper: 1 page, normalised output.
+    Returns list of dicts matching the unified job schema.
+    """
+    import json as _json
+
+    search_city = f"{city}, India" if city.lower().strip() in INDIAN_CITIES else city
+    search_url = (
+        f"https://internshala.com/internships/"
+        f"keywords-{keyword.replace(' ', '-')}/"
+        f"location-{search_city.replace(' ', '-')}"
+    )
+
+    main_driver = get_stealth_driver()
+    jobs: list[dict] = []
+
+    try:
+        print(f"  Internshala: fetching {search_url}")
+        main_driver.get(search_url)
+        time.sleep(4)
+        main_driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)
+
+        soup = BeautifulSoup(main_driver.page_source, 'html.parser')
+        cards = soup.find_all('div', class_=re.compile('individual_internship'))
+
+        job_list = []
+        for card in cards[:20]:
+            if card.find_parent('a', class_='marketing_ads_card'):
+                continue
+
+            title_elem = card.select_one('a.job-title-href') or card.select_one('.job-internship-name a')
+            company_elem = card.select_one('p.company-name')
+            if not title_elem or not company_elem:
+                continue
+
+            duration = "Not specified"
+            items = card.find_all('div', class_='row-1-item')
+            if len(items) >= 3:
+                duration = items[2].text.strip() if items[2] else "Not specified"
+
+            status_elem = (
+                card.select_one('.status-info span') or
+                card.select_one('.status-success span') or
+                card.select_one('.status span') or
+                card.select_one('.status-inactive span')
+            )
+
+            href = title_elem.get('href', '')
+            detail_url = f"https://internshala.com{href}" if href.startswith('/') else href
+
+            job_list.append({
+                'title':      title_elem.text.strip(),
+                'company':    company_elem.text.strip(),
+                'detail_url': detail_url,
+                'stipend':    card.select_one('span.stipend').text.strip() if card.select_one('span.stipend') else "N/A",
+                'duration':   duration,
+                'status':     status_elem.text.strip() if status_elem else "Active",
+            })
+
+        main_driver.quit()
+        main_driver = None
+
+        # Parallel detail fetching
+        results = []
+        if job_list:
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                results = list(executor.map(fetch_job_details, job_list))
+
+        # Normalise to unified schema
+        for d in results:
+            jobs.append({
+                "source":          "Internshala",
+                "title":           d.get("title", ""),
+                "employer":        d.get("company", "N/A"),
+                "location":        city,
+                "salary":          d.get("stipend", "N/A"),
+                "duration":        d.get("duration", "N/A"),
+                "status":          d.get("status", "Active"),
+                "apply_link":      d.get("detail_url", ""),
+                "description":     "",
+                "skills":          d.get("skills", []),
+                "employment_type": "Internship",
+                "posted_at":       "",
+                "employer_logo":   "",
+            })
+
+    except Exception as exc:
+        print(f"  ❌ Internshala fast scraper error: {exc}")
+    finally:
+        if main_driver:
+            try:
+                main_driver.quit()
+            except Exception:
+                pass
+
+    print(f"  ✅ Internshala → {len(jobs)} jobs")
+    return jobs
+
+
 # @app.route('/internships/keywords-<skill>')
 # def show_internships(skill):
 #     # The variable 'skill' becomes "python"

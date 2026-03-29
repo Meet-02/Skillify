@@ -575,18 +575,20 @@ async def get_internships(
     domain: str = "",
     db: Session = Depends(get_db),
 ):
+    from app.services.job_scraper_service import aggregate_jobs
     from app.models import UserSkills, Skills, UserProfile
 
-    if not JSEARCH_API_KEY:
-        return {"jobs": [], "total": 0, "error": "JSEARCH_API_KEY missing"}
+    print(f"\n{'='*60}")
+    print(f"📥 /api/internships called | city={city!r} domain={domain!r} date_filter={date_filter!r}")
+    print(f"{'='*60}")
 
     user_id = request.session.get("user_id")
+    print(f"  🔑 user_id = {user_id}")
 
     # ---------------- USER PROFILE ----------------
     user_skills_list = []
     user_profile_struct = {"technical": [], "tools": [], "soft": []}
     resume_text = ""
-    profile_domain_interest = ""
 
     if user_id:
         skills_raw = (
@@ -595,6 +597,7 @@ async def get_internships(
             .filter(UserSkills.user_id == user_id)
             .all()
         )
+        print(f"  📋 Found {len(skills_raw)} user skills in DB")
 
         for sname, stype in skills_raw:
             user_skills_list.append(sname)
@@ -607,162 +610,48 @@ async def get_internships(
             user_profile_struct[bucket].append(sname)
 
         resume_text = " ".join(user_skills_list)
-
-        prof = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
-        if prof and prof.domain_interest:
-            profile_domain_interest = prof.domain_interest
-
-    # ---------------- QUERY BUILD ----------------
-    domain_key = (domain or "").strip().lower()
-    domain_kw = DOMAIN_KEYWORDS.get(domain_key, "")
-
-    if not domain_kw and profile_domain_interest:
-        domain_kw = profile_domain_interest
-
-    queries = []
-
-    if domain_kw:
-        # STRICT MATCHING: Only fetch jobs related to the specific domain
-        queries.extend([
-            f"{domain_kw} internship in {city}",
-            f"{domain_kw} fresher in {city}"
-        ])
+        print(f"  📋 User profile: tech={len(user_profile_struct['technical'])} tools={len(user_profile_struct['tools'])} soft={len(user_profile_struct['soft'])}")
     else:
-        # BROAD MATCHING: Only fetch general jobs if NO domain is selected
-        queries.extend([
-            f"internship in {city}",
-            f"fresher jobs in {city}",
-        ])
-    # ---------------- API CALL ----------------
-    raw_jobs = []
-    seen_links = set()
+        print("  ⚠️  No user_id in session — scoring will be 0% for all jobs")
 
-    async with httpx.AsyncClient(timeout=15) as client:
-        for q in queries:
-            try:
-                url = (
-                    f"https://jsearch.p.rapidapi.com/search"
-                    f"?query={q.replace(' ', '%20')}"
-                    f"&page=1&num_pages=5&date_posted={date_filter}"
-                )
+    # ---------------- CALL UNIFIED PIPELINE ----------------
+    print(f"\n  ⏳ Calling aggregate_jobs() ...")
+    import time as _time
+    _t0 = _time.time()
 
-                resp = await client.get(url, headers={
-                    "x-rapidapi-key": JSEARCH_API_KEY,
-                    "x-rapidapi-host": "jsearch.p.rapidapi.com",
-                })
+    result = await aggregate_jobs(
+        domain       = domain,
+        city         = city,
+        user_profile = user_profile_struct,
+        resume_text  = resume_text,
+        sources      = ["internshala", "indeed", "jsearch"],
+        date_filter  = date_filter,
+    )
 
-                if resp.status_code != 200:
-                    continue
+    _elapsed = _time.time() - _t0
+    print(f"  ✅ aggregate_jobs() returned in {_elapsed:.1f}s — {result.get('total', 0)} jobs")
 
-                data = resp.json().get("data", [])
+    # ---------------- RESHAPE FOR FRONTEND ----------------
+    jobs = result.get("jobs", [])
+    print(f"  🔄 Reshaping {len(jobs)} jobs for frontend (has_profile={bool(user_skills_list)})")
+    for job in jobs:
+        # Add has_profile flag for the frontend UI
+        job["has_profile"] = bool(user_skills_list)
+        # Strip heavy fields
+        job.pop("description", None)
+        # Cap skills shown
+        if isinstance(job.get("skills"), list):
+            job["skills"] = job["skills"][:12]
 
-                for job in data:
-                    link = job.get("job_apply_link")
-                    if link and link not in seen_links:
-                        seen_links.add(link)
-                        raw_jobs.append(job)
-
-                # 🔥 STOP early if we got enough jobs
-                if len(raw_jobs) >= 25:
-                    break
-
-            except Exception as e:
-                print("API error:", e)
-
-    # ---------------- PROCESS JOBS ----------------
-    results = []
-
-    for job in raw_jobs[:25]:  # limit to 25 (safe >20)
-        title = job.get("job_title", "")
-        employer = job.get("employer_name", "")
-        location = job.get("job_city") or city
-        apply_link = job.get("job_apply_link", "#")
-        description = job.get("job_description", "")
-        description = job.get("job_description") or ""
-        publisher = job.get("publisher_name", "")
-        employment_type = job.get("job_employment_type", "Internship")
-
-        qualifications = job.get("job_highlights", {}).get("Qualifications") or []
-        qualifications = [str(q) for q in qualifications[:5]]
-
-        match_score = 0
-        gap_sev = "N/A"
-        missing = {}
-
-        if user_skills_list:
-            from app.services.skill_extractor import extract_skills as ext_sk
-            from app.services.match_service import run_matching_pipeline
-
-            job_text_blob = f"{title} {' '.join(qualifications)} {description[:1000] if description else ''}"
-            job_skills_extracted = ext_sk(job_text_blob)
-
-            job_profile = {"technical": [], "tools": [], "soft": []}
-
-            for js in job_skills_extracted:
-                sk_type = (js.get("skill_type") or "technical").lower()
-                bucket = (
-                    "tools" if sk_type in ("tool", "tools")
-                    else "soft" if sk_type == "soft"
-                    else "technical"
-                )
-                name = js["skill_name"]
-                if name not in job_profile[bucket]:
-                    job_profile[bucket].append(name)
-
-            try:
-                result = run_matching_pipeline(
-                    user_profile=user_profile_struct,
-                    job_profile=job_profile,
-                    resume_text=resume_text,
-                    job_text=job_text_blob,
-                )
-                match_score = result["final_match_score"]
-                gap_sev = result["gap_severity"]
-                missing = result["missing_skills"]
-            except Exception as e:
-                print("Scoring error:", e)
-
-        results.append({
-            "title": title,
-            "employer": employer,
-            "employer_logo": job.get("employer_logo", ""), # Added back for UI
-            "location": location,
-            "apply_link": apply_link,
-            "posted_at": job.get("job_posted_at_datetime_utc", ""), # Added back for UI
-            "employment_type": employment_type,
-            "publisher": publisher,
-            "qualifications": qualifications,
-            "match_score": round(match_score, 1),
-            "gap_severity": gap_sev,
-            "missing_skills": missing,
-            "has_profile": bool(user_skills_list) # THIS FIXES THE ERROR
-        })
-
-    # sort by match score
-    if user_skills_list:
-        results.sort(key=lambda x: x["match_score"], reverse=True)
+    print(f"  📤 Returning {len(jobs)} jobs to frontend")
+    print(f"{'='*60}\n")
 
     return {
-        "jobs": results,
-        "total": len(results),
-        "city": city,
+        "jobs":  jobs,
+        "total": result.get("total", 0),
+        "city":  city,
     }
 
-        #     results.append({
-        #     "title":          title,
-        #     "employer":       employer,
-        #     "employer_logo":  employer_logo,
-        #     "location":       location,
-        #     "apply_link":     apply_link,
-        #     "posted_at":      posted_at,
-        #     "employment_type": employment_type,
-        #     "publisher":      publisher,
-        #     "qualifications": req_skills,
-        #     "match_score":    round(match_score, 1),
-        #     "gap_severity":   gap_sev,
-        #     "missing_skills": missing,
-        #     "has_profile":    bool(user_skills_list),
-        # })
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Unified Jobs API  (Internshala + Indeed + JSearch — parallel)
@@ -773,6 +662,7 @@ async def get_jobs_unified(
     request:     Request,
     city:        str = "Mumbai",
     domain:      str = "",
+    date_filter: str = "month",
     sources:     str = "internshala,indeed,jsearch",   # comma-separated
     db:          Session = Depends(get_db),
 ):
@@ -826,6 +716,7 @@ async def get_jobs_unified(
         user_profile = user_profile_struct,
         resume_text  = resume_text,
         sources      = source_list,
+        date_filter  = date_filter,
     )
 
     # Strip heavy fields before sending to frontend

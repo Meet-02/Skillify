@@ -3,13 +3,28 @@ import os
 import re
 import random
 import pickle
+from datetime import datetime, timezone
 import pandas as pd
 import undetected_chromedriver as uc
 from bs4 import BeautifulSoup
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
- 
+
+# ── Indian cities & date-filter map ─────────────────────────
+INDIAN_CITIES = {
+    "mumbai", "delhi", "bangalore", "bengaluru", "hyderabad", "chennai",
+    "pune", "kolkata", "ahmedabad", "jaipur", "surat", "lucknow",
+    "noida", "gurugram", "gurgaon", "indore", "bhopal",
+}
+
+DATE_FILTER_MAP: dict[str, int] = {
+    "24h": 1, "last 24h": 1, "today": 1,
+    "3days": 3, "last 3 days": 3,
+    "week": 7, "last week": 7,
+    "month": 30, "last month": 30,
+}
+
 # ─────────────────────────────────────────────────────────────
 # KNOWN SKILLS — keyword matching only, no spaCy noise
 # ─────────────────────────────────────────────────────────────
@@ -553,7 +568,7 @@ COOKIES_FILE        = "indeed_cookies.pkl"
 # ⚙️  FIRST RUN:  FIRST_RUN = True  → log in manually, saves cookies
 #     AFTER THAT:  FIRST_RUN = False → loads cookies automatically
 # ─────────────────────────────────────────────────────────────
-FIRST_RUN = False   # ← Change to True only for first-time login
+FIRST_RUN = False  # ← Change to True only for first-time login
  
  
 # ─────────────────────────────────────────────────────────────
@@ -590,12 +605,13 @@ def load_indeed_session(driver):
 # ─────────────────────────────────────────────────────────────
  
 def get_stealth_driver():
-    options       = uc.ChromeOptions()
-    script_dir    = os.path.dirname(os.path.abspath(__file__))
+    options = uc.ChromeOptions()
+    script_dir = os.path.dirname(os.path.abspath(__file__))
     user_data_dir = os.path.join(script_dir, "indeed_profile")
     if not os.path.exists(user_data_dir):
         os.makedirs(user_data_dir)
     options.add_argument(f"--user-data-dir={user_data_dir}")
+
     return uc.Chrome(options=options, version_main=146)
  
  
@@ -826,6 +842,89 @@ def get_indeed_data(job_title, cities, pages_per_city=3):
     return all_jobs
  
  
+# ─────────────────────────────────────────────────────────────────
+# FAST WRAPPER  (used by job_scraper_service.py aggregate pipeline)
+# ─────────────────────────────────────────────────────────────────
+
+def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "month") -> list[dict]:
+    """
+    Lightweight Indeed scraper: 1 city, 1 page, normalised output.
+    Returns list of dicts matching the unified job schema.
+    """
+    search_city = f"{city}, India" if city.lower().strip() in INDIAN_CITIES else city
+    fromage = DATE_FILTER_MAP.get(date_filter.lower().strip(), 30)
+
+    driver = get_stealth_driver()
+    jobs: list[dict] = []
+
+    try:
+        if not load_indeed_session(driver):
+            print("  ⚠️  Indeed: no saved session — skipping")
+            return []
+
+        base_url = (
+            f"https://in.indeed.com/jobs"
+            f"?q={keyword.replace(' ', '+')}"
+            f"&l={search_city.replace(' ', '+')}"
+            f"&fromage={fromage}"
+        )
+        print(f"  🔎 Indeed base_url: {base_url}")
+        driver.get(base_url)
+        time.sleep(random.uniform(4, 6))
+        close_popups(driver)
+
+        if not wait_for_cards(driver):
+            print("  ⚠️  Indeed: no cards found")
+            return []
+
+        human_scroll(driver)
+        time.sleep(random.uniform(0.8, 1.5))
+
+        stubs = collect_job_stubs(driver, city)
+        if not stubs:
+            return []
+
+        # Fetch skills for first 15 stubs max (speed cap)
+        detailed = fetch_skills_for_stubs(driver, stubs[:15], base_url)
+
+        for d in detailed:
+            skills_raw = d.get("Skills", [])
+            if isinstance(skills_raw, str):
+                skills_list = [s.strip() for s in skills_raw.split(",") if s.strip() and s.strip().lower() != "not listed"]
+            elif isinstance(skills_raw, list):
+                skills_list = [str(s).strip() for s in skills_raw if str(s).strip()]
+            else:
+                skills_list = []
+
+            jobs.append({
+                "source":          "Indeed",
+                "title":           d.get("Job_Title", ""),
+                "employer":        d.get("Company", "N/A"),
+                "location":        d.get("Location", city),
+                "salary":          d.get("Salary", "Not disclosed"),
+                "duration":        "N/A",
+                "status":          d.get("Status", "Active"),
+                "apply_link":      d.get("Link", ""),
+                "description":     "",
+                "skills":          skills_list,
+                "qualifications":  list(skills_list),
+                "employment_type": d.get("Job_Type", "Permanent"),
+                "posted_at":       datetime.now(timezone.utc).isoformat(),
+                "employer_logo":   "",
+            })
+
+    except Exception as exc:
+        print(f"  ❌ Indeed fast scraper error: {exc}")
+    finally:
+        try:
+            driver.quit()
+        except Exception:
+            pass
+
+    print(f"  ✅ Indeed → {len(jobs)} jobs")
+    return jobs
+
+
 if __name__ == "__main__":
     job_title  = input("Job Role (e.g. Data Science): ").strip()
     city_input = input("Cities (comma-separated, e.g. Mumbai,Bangalore): ").strip()
