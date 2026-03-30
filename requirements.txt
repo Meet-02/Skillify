@@ -9,14 +9,16 @@ itsdangerous>=2.1.2
 pdfplumber==0.11.0
 pdfminer.six==20231228
 
-# Natural Language Processing (NLP)
+# Natural Language Processing (NLP) & Data
 spacy==3.7.4
 scikit-learn
 numpy==1.26.4
+pandas
 
 # Authentication & Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]
+argon2-cffi==23.1.0
 
 # Database
 SQLAlchemy
@@ -36,5 +38,3 @@ fake-useragent
 # Environment and Utilities
 python-dotenv==1.0.1
 pydantic==2.6.4
-
-argon2-cffi==23.1.0
