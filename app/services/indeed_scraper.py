@@ -108,12 +108,34 @@ def save_indeed_session(driver):
     print(f"✅ Session saved. Set FIRST_RUN = False and run again.\n")
  
  
+# def get_stealth_driver():
+#     options = uc.ChromeOptions()
+#     if not os.path.exists(USER_DATA_DIR):
+#         os.makedirs(USER_DATA_DIR)
+    
+#     options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
+#     # Fix for threading: prevent multiple instances from crashing
+#     options.add_argument("--no-first-run")
+#     options.add_argument("--no-service-autorun")
+#     options.add_argument("--password-store=basic")
+    
+#     return uc.Chrome(options=options, version_main=146)
+
 def get_stealth_driver():
     options = uc.ChromeOptions()
     if not os.path.exists(USER_DATA_DIR):
         os.makedirs(USER_DATA_DIR)
     
     options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
+    
+    # --- ADD HEADLESS MODE HERE ---
+    options.add_argument("--headless")  # Use "--headless=new" if using latest Chrome
+    options.add_argument("--no-sandbox")            # <--- ADD THIS
+    options.add_argument("--disable-dev-shm-usage")  # <--- ADD THIS
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    # ------------------------------
+
     # Fix for threading: prevent multiple instances from crashing
     options.add_argument("--no-first-run")
     options.add_argument("--no-service-autorun")

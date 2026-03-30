@@ -559,4 +559,4 @@ async def aggregate_jobs(
         "city":        city
     }
 
-    return result
+    # return result

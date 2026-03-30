@@ -1,15 +1,27 @@
+# --- Security & Environment ---
 .env
-test.py
-app/static/resumes/
+*.pkl
+app/services/indeed_cookies.pkl
+
+# --- Scraping & Browser Data ---
+# Ignores the entire profile folder and everything inside it
+app/services/indeed_profile/
+undetected_chromedriver/
+
+# --- User Uploads & Temporary Files ---
+# Keeps the folder but ignores the uploaded PDFs
+app/static/resumes/*
 tmp/jobs_cache/
+
+# --- Python System Files ---
 __pycache__/
 *.pyc
+
+# --- IDE & OS Junk ---
 .vscode/
 .idea/
 .DS_Store
-app/services/indeed_profile/
-undetected_chromedriver/
-*.pkl
-app/services/indeed_profile/Safe Browsing/UrlMalBin.store.4_13419277716466179
-app/services/indeed_profile
-app/services/indeed_cookies.pkl
+
+# --- Testing ---
+test.py
+test2.py
