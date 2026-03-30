@@ -26,515 +26,36 @@ DATE_FILTER_MAP: dict[str, int] = {
     "month": 30, "last month": 30,
 }
 
-# ─────────────────────────────────────────────────────────────
-# KNOWN SKILLS — keyword matching only, no spaCy noise
-# ─────────────────────────────────────────────────────────────
-KNOWN_SKILLS = sorted([
 
-    # ════════════════════════════════════════════
-    # 💻 SOFTWARE ENGINEER (General)
-    # ════════════════════════════════════════════
-    "python", "java", "javascript", "typescript", "c++", "c#", "c",
-    "ruby", "go", "golang", "php", "swift", "kotlin", "scala", "rust",
-    "perl", "r", "dart", "objective-c", "bash", "shell", "powershell",
-    "groovy", "lua", "haskell", "elixir", "erlang", "clojure", "f#",
-    "cobol", "fortran", "assembly", "vba", "matlab", "julia",
-    "git", "github", "gitlab", "bitbucket", "svn",
-    "agile", "scrum", "kanban", "tdd", "bdd", "solid",
-    "design patterns", "clean architecture", "microservices",
-    "rest api", "restful", "soap", "grpc", "graphql",
-    "docker", "kubernetes", "linux", "ubuntu",
-    "jira", "confluence", "swagger", "openapi", "postman",
+import json
 
-    # ════════════════════════════════════════════
-    # 🖥️ FRONTEND DEVELOPER
-    # ════════════════════════════════════════════
-    "html", "css", "sass", "scss", "less",
-    "react", "angular", "vue", "svelte", "sveltekit",
-    "next.js", "nuxt.js", "gatsby", "remix", "astro",
-    "jquery", "bootstrap", "tailwind", "tailwindcss",
-    "material ui", "material design", "chakra ui", "ant design",
-    "styled components", "emotion",
-    "webpack", "vite", "parcel", "rollup", "babel",
-    "redux", "zustand", "recoil", "mobx", "rxjs",
-    "jest", "cypress", "playwright", "puppeteer", "storybook",
-    "three.js", "d3.js", "chart.js", "webgl", "webassembly",
-    "pwa", "web components", "web accessibility", "wcag",
-    "figma", "zeplin", "adobe xd",
-    "seo", "performance optimization", "responsive design",
-    "cross browser compatibility",
+# Path to your master skills file
+_SERVICE_DIR = Path(__file__).resolve().parent
+_ROOT = _SERVICE_DIR.parent.parent
+SKILLS_JSON_PATH = _ROOT / "app" / "data" / "skills_master_indeed.json"
 
-    # ════════════════════════════════════════════
-    # ⚙️ BACKEND DEVELOPER
-    # ════════════════════════════════════════════
-    "node.js", "nodejs", "express", "expressjs", "nestjs", "fastify",
-    "django", "flask", "fastapi", "tornado", "celery",
-    "spring", "spring boot", "spring mvc", "spring security",
-    "hibernate", "jpa", "struts",
-    "rails", "sinatra", "laravel", "symfony", "codeigniter", "lumen",
-    "asp.net", ".net", ".net core", "blazor", "entity framework",
-    "gin", "fiber", "echo", "beego",
-    "phoenix", "ecto",
-    "jwt", "oauth", "oauth2", "saml", "sso",
-    "message queue", "event driven", "cqrs", "saga",
-    "api gateway", "service mesh", "serverless",
-    "sql", "mysql", "postgresql", "postgres", "sqlite", "mssql",
-    "mariadb", "oracle", "mongodb", "redis", "elasticsearch",
-    "cassandra", "dynamodb", "firebase", "firestore",
-    "prisma", "sequelize", "sqlalchemy", "typeorm", "mongoose",
+def load_skills_from_json():
+    try:
+        with open(SKILLS_JSON_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        
+        flat_skills = set()
+        for item in data:
+            # Add the primary name (e.g., "Python")
+            flat_skills.add(item["name"].lower())
+            # Add all synonyms (e.g., "py", "python3")
+            if "synonyms" in item:
+                for syn in item["synonyms"]:
+                    flat_skills.add(syn.lower())
+        
+        # Sort by length descending to ensure "Spring Boot" matches before "Spring"
+        return sorted(list(flat_skills), key=len, reverse=True)
+    except Exception as e:
+        print(f"⚠️ Error loading skills_master.json: {e}")
+        return []
 
-    # ════════════════════════════════════════════
-    # 🔄 FULL STACK DEVELOPER
-    # ════════════════════════════════════════════
-    # (covered by frontend + backend above)
-    "full stack", "mern", "mean", "mevn", "lamp", "lemp",
-    "pern", "t3 stack",
-
-    # ════════════════════════════════════════════
-    # 🤖 ANDROID DEVELOPER
-    # ════════════════════════════════════════════
-    "android", "android sdk", "android studio",
-    "jetpack compose", "viewmodel", "livedata", "room database",
-    "retrofit", "okhttp", "glide", "picasso", "coil",
-    "hilt", "dagger", "koin",
-    "mvvm", "mvp", "mvi",
-    "coroutines", "rxjava", "rxandroid", "flow",
-    "workmanager", "navigation component", "data binding",
-    "view binding", "constraint layout",
-    "firebase", "fcm", "crashlytics", "google play",
-    "exoplayer", "media3",
-    "in-app purchase", "google maps sdk",
-    "espresso", "junit", "mockito",
-    "proguard", "r8", "gradle",
-    "material design 3", "adaptive layouts",
-
-    # ════════════════════════════════════════════
-    # 🍎 iOS DEVELOPER
-    # ════════════════════════════════════════════
-    "ios", "swift", "objective-c",
-    "swiftui", "uikit", "appkit",
-    "core data", "core location", "core motion", "core ml",
-    "combine", "async await",
-    "alamofire", "kingfisher", "sdwebimage",
-    "realm", "coredata",
-    "xcode", "cocoapods", "spm", "carthage",
-    "instruments", "testflight", "app store connect",
-    "push notifications", "apns",
-    "in-app purchase", "storekit",
-    "arkit", "scenekit", "realitykit",
-    "healthkit", "cloudkit",
-    "mvvm", "viper", "coordinator pattern",
-    "xctest", "quick", "nimble",
-    "fastlane", "bitrise",
-
-    # ════════════════════════════════════════════
-    # ☁️ DEVOPS / CLOUD
-    # ════════════════════════════════════════════
-    "aws", "azure", "gcp", "google cloud",
-    "ec2", "s3", "lambda", "cloudfront", "rds", "eks", "ecs",
-    "fargate", "route53", "vpc", "iam", "cloudwatch",
-    "azure devops", "azure functions", "azure blob", "aks",
-    "cloud functions", "cloud run", "gke", "bigquery",
-    "digitalocean", "linode", "heroku", "vercel", "netlify",
-    "cloudflare", "fastly",
-    "terraform", "pulumi", "cloudformation", "cdk",
-    "ansible", "puppet", "chef", "vagrant", "packer",
-    "docker", "kubernetes", "helm", "istio", "envoy",
-    "argocd", "flux", "tekton", "spinnaker",
-    "jenkins", "github actions", "gitlab ci", "circleci",
-    "travis ci", "bitbucket pipelines",
-    "prometheus", "grafana", "datadog", "splunk", "elk stack",
-    "newrelic", "dynatrace", "pagerduty", "opsgenie",
-    "nginx", "apache", "haproxy", "traefik", "caddy",
-    "kafka", "rabbitmq", "activemq", "nats", "pubsub",
-    "vault", "consul", "etcd",
-    "sonarqube", "snyk", "trivy", "aqua security",
-    "ci/cd", "gitops", "devsecops", "sre",
-    "infrastructure as code", "site reliability",
-    "centos", "rhel", "debian", "alpine",
-    "networking", "dns", "load balancing", "cdn",
-    "ssl", "tls", "https",
-
-    # ════════════════════════════════════════════
-    # 📊 DATA SCIENCE
-    # ════════════════════════════════════════════
-    "data science", "data analysis", "data visualization",
-    "statistics", "probability", "hypothesis testing",
-    "regression", "classification", "clustering",
-    "pandas", "numpy", "scipy", "matplotlib", "seaborn",
-    "plotly", "bokeh", "altair",
-    "scikit-learn", "xgboost", "lightgbm", "catboost",
-    "statsmodels", "pingouin",
-    "r", "ggplot2", "tidyverse", "dplyr", "caret",
-    "jupyter", "google colab", "anaconda",
-    "tableau", "power bi", "looker", "metabase", "superset",
-    "excel", "google sheets", "pivot tables",
-    "sql", "bigquery", "snowflake", "redshift", "databricks",
-    "a/b testing", "experiment design", "cohort analysis",
-    "time series", "forecasting", "arima", "prophet",
-    "feature engineering", "feature selection", "eda",
-
-    # ════════════════════════════════════════════
-    # 🧠 ML / AI ENGINEER
-    # ════════════════════════════════════════════
-    "machine learning", "deep learning", "nlp",
-    "natural language processing", "computer vision",
-    "generative ai", "llm", "large language models",
-    "tensorflow", "pytorch", "keras", "jax", "mxnet",
-    "hugging face", "transformers", "bert", "gpt",
-    "langchain", "llamaindex", "openai", "anthropic", "gemini",
-    "stable diffusion", "diffusion models", "gan",
-    "reinforcement learning", "q-learning", "ppo",
-    "object detection", "yolo", "faster rcnn", "sam",
-    "opencv", "pillow", "albumentations",
-    "vector database", "pinecone", "weaviate", "chroma", "qdrant",
-    "rag", "embeddings", "fine-tuning", "prompt engineering",
-    "mlops", "mlflow", "kubeflow", "wandb", "neptune",
-    "model deployment", "model serving", "triton", "torchserve",
-    "onnx", "tensorrt", "quantization", "pruning",
-    "recommendation systems", "ranking", "retrieval",
-
-    # ════════════════════════════════════════════
-    # 🔧 DATA ENGINEER
-    # ════════════════════════════════════════════
-    "data engineering", "etl", "elt", "data pipeline",
-    "data warehouse", "data lake", "data lakehouse",
-    "apache spark", "pyspark", "spark", "hadoop", "hive",
-    "pig", "flink", "beam", "storm",
-    "kafka", "kinesis", "pubsub", "eventhub",
-    "airflow", "luigi", "prefect", "dagster", "mage",
-    "dbt", "great expectations", "deequ",
-    "snowflake", "bigquery", "redshift", "databricks", "synapse",
-    "delta lake", "apache iceberg", "apache hudi",
-    "parquet", "avro", "orc", "json", "csv",
-    "fivetran", "stitch", "airbyte", "talend", "informatica",
-    "nifi", "logstash", "fluentd",
-    "data modeling", "star schema", "kimball", "inmon",
-    "data governance", "data quality", "data lineage",
-    "elasticsearch", "opensearch", "solr",
-    "cassandra", "hbase", "scylladb",
-    "influxdb", "timescaledb",
-
-    # ════════════════════════════════════════════
-    # 🎨 UI / UX DESIGNER
-    # ════════════════════════════════════════════
-    "ui design", "ux design", "user interface", "user experience",
-    "figma", "sketch", "adobe xd", "invision", "zeplin",
-    "marvel", "framer", "protopie",
-    "wireframing", "prototyping", "mockups",
-    "user research", "usability testing", "user testing",
-    "information architecture", "card sorting", "tree testing",
-    "persona", "user journey", "customer journey mapping",
-    "design thinking", "human centered design",
-    "interaction design", "visual design", "motion design",
-    "typography", "color theory", "grid systems",
-    "design system", "component library", "style guide",
-    "adobe illustrator", "adobe photoshop", "after effects",
-    "principle", "lottie", "rive",
-    "accessibility", "wcag", "aria",
-    "responsive design", "mobile first", "adaptive design",
-    "heuristic evaluation", "cognitive walkthrough",
-    "eye tracking", "heat maps", "a/b testing",
-    "html", "css",  # UX with dev skills
-
-    # ════════════════════════════════════════════
-    # 🧪 QA / TESTING
-    # ════════════════════════════════════════════
-    "manual testing", "automation testing", "qa",
-    "selenium", "appium", "webdriverio", "testcafe",
-    "cypress", "playwright", "puppeteer",
-    "espresso", "xcuitest", "detox",
-    "junit", "testng", "pytest", "unittest", "nunit", "xunit",
-    "mocha", "chai", "jasmine", "karma",
-    "jest", "vitest", "testing library",
-    "cucumber", "gherkin", "specflow", "behave",
-    "jmeter", "gatling", "k6", "locust", "artillery",
-    "postman", "rest assured", "karate",
-    "soapui", "insomnia",
-    "test plan", "test case", "test strategy",
-    "regression testing", "smoke testing", "sanity testing",
-    "integration testing", "unit testing", "e2e testing",
-    "performance testing", "load testing", "stress testing",
-    "security testing", "penetration testing",
-    "mobile testing", "cross browser testing",
-    "bug reporting", "defect lifecycle", "traceability matrix",
-    "jira", "testrail", "zephyr", "qtest", "xray",
-    "ci/cd", "devops", "shift left testing",
-    "bdd", "tdd", "atdd",
-
-    # ════════════════════════════════════════════
-    # 🔐 CYBERSECURITY
-    # ════════════════════════════════════════════
-    "cybersecurity", "information security", "infosec",
-    "network security", "application security", "appsec",
-    "cloud security", "endpoint security", "data security",
-    "penetration testing", "ethical hacking", "red team",
-    "blue team", "purple team", "threat hunting",
-    "vulnerability assessment", "vulnerability management",
-    "siem", "soar", "edr", "xdr", "ndr",
-    "splunk", "qradar", "microsoft sentinel", "sumo logic",
-    "crowdstrike", "sentinelone", "carbon black",
-    "nessus", "qualys", "rapid7", "openvas",
-    "metasploit", "burp suite", "owasp zap", "nmap", "wireshark",
-    "kali linux", "parrot os",
-    "owasp", "cve", "cvss", "cwe",
-    "iam", "pam", "rbac", "zero trust", "least privilege",
-    "ssl", "tls", "pki", "certificate management",
-    "oauth", "saml", "ldap", "active directory",
-    "firewall", "ids", "ips", "waf", "ddos protection",
-    "vpn", "sd-wan", "network monitoring",
-    "incident response", "forensics", "malware analysis",
-    "reverse engineering", "threat intelligence",
-    "soc", "csirt", "cert",
-    "iso 27001", "nist", "soc2", "pci dss", "gdpr", "hipaa",
-    "devsecops", "sast", "dast", "iast", "rasp",
-    "encryption", "hashing", "cryptography",
-    "osint", "social engineering",
-
-    # ════════════════════════════════════════════
-    # 📋 PRODUCT MANAGER
-    # ════════════════════════════════════════════
-    "product management", "product strategy", "product roadmap",
-    "product discovery", "product delivery",
-    "user stories", "epics", "backlog management", "backlog grooming",
-    "stakeholder management", "requirement gathering",
-    "market research", "competitive analysis", "go-to-market",
-    "product analytics", "metrics", "kpis", "okrs",
-    "north star metric", "aarrr", "pirate metrics",
-    "a/b testing", "feature flagging", "product experiments",
-    "agile", "scrum", "kanban", "safe", "lean",
-    "sprint planning", "retrospective", "daily standup",
-    "jira", "confluence", "notion", "linear", "asana",
-    "figma", "miro", "mural", "lucidchart",
-    "product led growth", "plg", "customer success",
-    "user research", "customer interviews", "jobs to be done",
-    "wireframing", "prototyping",
-    "pricing strategy", "monetization", "business model",
-    "sql", "excel", "google analytics", "mixpanel", "amplitude",
-    "hotjar", "fullstory", "heap",
-    "api understanding", "technical writing",
-
-    # ════════════════════════════════════════════
-    # 🔌 EMBEDDED / IoT
-    # ════════════════════════════════════════════
-    "embedded systems", "rtos", "firmware", "microcontroller",
-    "arduino", "raspberry pi", "esp32", "esp8266", "stm32",
-    "arm", "arm cortex", "mips", "risc-v",
-    "c", "c++", "assembly", "rust",
-    "freertos", "zephyr", "vxworks", "qnx", "threadx",
-    "linux kernel", "embedded linux", "yocto", "buildroot",
-    "device drivers", "bsp", "hal",
-    "uart", "spi", "i2c", "can", "usb", "ethernet",
-    "tcp/ip", "mqtt", "coap", "zigbee", "z-wave",
-    "bluetooth", "ble", "wifi", "lora", "lorawan", "nb-iot",
-    "iot", "iot platforms", "aws iot", "azure iot",
-    "ota updates", "bootloader", "u-boot",
-    "keil", "iar", "eclipse", "platformio",
-    "jtag", "swd", "openocd", "gdb",
-    "oscilloscope", "logic analyzer", "multimeter",
-    "pcb design", "altium", "kicad", "eagle",
-    "verilog", "vhdl", "fpga", "xilinx", "intel fpga",
-    "signal processing", "dsp", "fft",
-    "automotive", "can bus", "lin bus", "autosar",
-    "functional safety", "iso 26262", "iec 61508",
-    "plc", "scada", "modbus", "opc-ua",
-
-    # ════════════════════════════════════════════
-    # ⛓️ BLOCKCHAIN / WEB3
-    # ════════════════════════════════════════════
-    "blockchain", "web3", "decentralized",
-    "ethereum", "bitcoin", "solana", "polygon", "avalanche",
-    "binance smart chain", "hyperledger",
-    "solidity", "rust", "move", "vyper",
-    "smart contracts", "erc20", "erc721", "erc1155",
-    "nft", "defi", "dao", "dex", "amm",
-    "metamask", "walletconnect", "rainbowkit",
-    "ethers.js", "web3.js", "viem", "wagmi",
-    "hardhat", "foundry", "truffle", "brownie",
-    "ipfs", "filecoin", "arweave",
-    "chainlink", "oracles",
-    "layer 2", "rollups", "zk proofs", "zero knowledge",
-    "consensus mechanisms", "proof of work", "proof of stake",
-    "tokenomics", "crypto economics",
-    "remix ide", "openzeppelin",
-    "the graph", "subgraph",
-    "gas optimization", "security audit",
-
-    # ════════════════════════════════════════════
-    # 📢 MARKETING
-    # ════════════════════════════════════════════
-    "digital marketing", "marketing strategy", "brand management",
-    "content marketing", "email marketing", "social media marketing",
-    "seo", "sem", "ppc", "google ads", "meta ads", "facebook ads",
-    "instagram ads", "linkedin ads", "twitter ads", "tiktok ads",
-    "google analytics", "ga4", "google tag manager",
-    "hubspot", "salesforce", "marketo", "pardot", "eloqua",
-    "mailchimp", "klaviyo", "sendgrid", "activecampaign",
-    "seo tools", "ahrefs", "semrush", "moz", "screaming frog",
-    "influencer marketing", "affiliate marketing",
-    "growth hacking", "growth marketing", "performance marketing",
-    "conversion rate optimization", "cro", "landing pages",
-    "marketing automation", "lead generation", "lead nurturing",
-    "crm", "customer segmentation", "audience targeting",
-    "brand awareness", "brand identity", "positioning",
-    "product marketing", "go-to-market", "gtm",
-    "market research", "competitive analysis", "swot",
-    "analytics", "reporting", "roi", "roas",
-    "a/b testing", "multivariate testing",
-    "video marketing", "youtube", "podcast", "webinar",
-    "pr", "public relations", "media relations",
-    "copywriting", "ad copywriting",
-    "wordpress", "webflow", "shopify",
-    "canva", "adobe creative suite",
-
-    # ════════════════════════════════════════════
-    # 💰 FINANCE & ACCOUNTING
-    # ════════════════════════════════════════════
-    "financial analysis", "financial modeling", "financial reporting",
-    "accounting", "bookkeeping", "auditing", "taxation",
-    "balance sheet", "income statement", "cash flow statement",
-    "budgeting", "forecasting", "variance analysis",
-    "accounts payable", "accounts receivable", "general ledger",
-    "reconciliation", "month end closing", "year end closing",
-    "gaap", "ifrs", "ind as", "accounting standards",
-    "tds", "gst", "income tax", "corporate tax", "vat",
-    "payroll", "compliance", "statutory compliance",
-    "erp", "sap", "oracle financials", "tally", "zoho books",
-    "quickbooks", "xero", "sage",
-    "excel", "advanced excel", "pivot tables", "vlookup",
-    "power bi", "tableau",
-    "investment analysis", "portfolio management", "equity research",
-    "valuation", "dcf", "comparable company analysis",
-    "mergers and acquisitions", "due diligence",
-    "risk management", "financial risk", "credit risk", "market risk",
-    "derivatives", "options", "futures", "bonds", "equities",
-    "banking", "lending", "credit analysis",
-    "insurance", "actuarial", "underwriting",
-    "treasury", "liquidity management", "fx", "forex",
-    "cfa", "cpa", "ca", "acca", "cma",
-    "internal audit", "internal controls", "sox", "ifrs 9",
-    "financial planning", "fp&a",
-
-    # ════════════════════════════════════════════
-    # 👥 HUMAN RESOURCES
-    # ════════════════════════════════════════════
-    "human resources", "hr management", "talent acquisition",
-    "recruitment", "sourcing", "headhunting", "talent management",
-    "onboarding", "offboarding", "employee lifecycle",
-    "performance management", "appraisal", "okrs", "kpis",
-    "learning and development", "l&d", "training",
-    "employee engagement", "employee relations",
-    "compensation and benefits", "payroll", "c&b",
-    "hris", "hrms", "sap hr", "workday", "bamboohr",
-    "darwinbox", "successfactors", "oracle hcm",
-    "linkedin recruiter", "naukri", "indeed", "greenhouse",
-    "lever", "workable", "taleo", "icims",
-    "hr analytics", "people analytics", "workforce planning",
-    "organizational development", "change management",
-    "diversity equity inclusion", "dei",
-    "labor law", "employment law", "compliance",
-    "statutory compliance", "pf", "esic", "gratuity",
-    "grievance handling", "disciplinary action",
-    "job analysis", "job description", "org design",
-    "succession planning", "career development",
-    "employer branding", "culture building",
-
-    # ════════════════════════════════════════════
-    # 🤝 SALES & BUSINESS DEVELOPMENT
-    # ════════════════════════════════════════════
-    "sales", "business development", "bd", "b2b sales", "b2c sales",
-    "enterprise sales", "saas sales", "inside sales", "field sales",
-    "account management", "key account management", "kam",
-    "lead generation", "prospecting", "cold calling", "cold email",
-    "crm", "salesforce", "hubspot", "zoho crm", "pipedrive",
-    "sales funnel", "pipeline management", "deal closure",
-    "negotiation", "objection handling", "solution selling",
-    "consultative selling", "challenger sales", "spin selling",
-    "revenue growth", "quota", "target achievement",
-    "client relationship", "customer success",
-    "upselling", "cross selling", "retention",
-    "partnerships", "channel sales", "reseller",
-    "proposal writing", "rfp", "rfi",
-    "market mapping", "territory management",
-    "sales analytics", "sales reporting", "revenue forecasting",
-    "product demo", "poc", "pilot",
-    "linkedin sales navigator", "apollo", "outreach", "salesloft",
-    "zoominfo", "lusha", "hunter.io",
-    "e-commerce", "marketplace", "retail",
-
-    # ════════════════════════════════════════════
-    # 🏭 OPERATIONS
-    # ════════════════════════════════════════════
-    "operations management", "process improvement", "lean",
-    "six sigma", "kaizen", "5s", "value stream mapping",
-    "supply chain management", "scm", "logistics", "warehousing",
-    "inventory management", "procurement", "vendor management",
-    "demand planning", "capacity planning", "production planning",
-    "erp", "sap", "oracle", "microsoft dynamics", "netsuite",
-    "project management", "pmp", "prince2", "agile", "scrum",
-    "ms project", "asana", "monday.com", "smartsheet",
-    "business process management", "bpm", "process mapping",
-    "standard operating procedures", "sop",
-    "quality management", "iso", "iso 9001", "total quality management",
-    "kpi", "sla", "oee", "throughput",
-    "facility management", "fleet management",
-    "customer service operations", "contact center",
-    "bpo", "outsourcing", "offshoring",
-    "data analysis", "excel", "power bi", "tableau",
-    "automation", "rpa", "uipath", "automation anywhere", "blue prism",
-    "cost reduction", "cost optimization", "efficiency",
-
-    # ════════════════════════════════════════════
-    # ✍️ CONTENT & MEDIA
-    # ════════════════════════════════════════════
-    "content writing", "copywriting", "content strategy",
-    "blogging", "article writing", "technical writing",
-    "creative writing", "storytelling", "narrative",
-    "seo writing", "seo content", "keyword research",
-    "social media content", "social media management",
-    "content calendar", "editorial planning",
-    "wordpress", "ghost", "medium", "substack",
-    "video production", "video editing", "youtube",
-    "premiere pro", "final cut pro", "davinci resolve",
-    "podcast", "audio editing", "audacity", "adobe audition",
-    "photography", "photo editing", "lightroom", "photoshop",
-    "scriptwriting", "screenplay", "voiceover",
-    "journalism", "news writing", "investigative reporting",
-    "pr writing", "press release", "media pitch",
-    "email newsletters", "mailchimp", "klaviyo",
-    "brand voice", "tone of voice", "style guide",
-    "translation", "localization", "proofreading", "editing",
-    "grammarly", "hemingway", "surfer seo",
-    "canva", "adobe express",
-    "content management system", "cms", "drupal", "joomla",
-    "analytics", "google analytics", "content performance",
-
-    # ════════════════════════════════════════════
-    # 🖌️ GRAPHIC DESIGN
-    # ════════════════════════════════════════════
-    "graphic design", "visual design", "brand design",
-    "logo design", "brand identity", "brand guidelines",
-    "illustration", "vector art", "icon design",
-    "typography", "color theory", "layout design",
-    "print design", "packaging design", "publication design",
-    "advertising design", "banner design", "poster design",
-    "social media design", "infographic", "data visualization",
-    "motion graphics", "animation", "2d animation", "3d animation",
-    "adobe photoshop", "adobe illustrator", "adobe indesign",
-    "adobe after effects", "adobe premiere pro",
-    "coreldraw", "affinity designer", "affinity photo",
-    "figma", "sketch", "canva",
-    "blender", "cinema 4d", "maya", "3ds max",
-    "ui design", "web design", "email design",
-    "print production", "prepress", "cmyk", "pantone",
-    "photography", "photo editing", "retouching",
-    "video editing", "storyboarding",
-    "lottie", "rive", "principle",
-
-], key=len, reverse=True)
-
-_seen = set()
-KNOWN_SKILLS = [s for s in KNOWN_SKILLS if s not in _seen and not _seen.add(s)] 
+# Dynamic list replaces the hardcoded block
+KNOWN_SKILLS = load_skills_from_json()
  
 def extract_skills(text: str) -> list:
     if not text:
@@ -853,14 +374,36 @@ def get_indeed_data(job_title, cities, pages_per_city=3):
 
 def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "month") -> list[dict]:
     """
-    Lightweight Indeed scraper: 1 city, 1 page, normalised output.
-    Returns list of dicts matching the unified job schema.
+    Paginated Indeed scraper: up to 5 pages, normalised output.
+
+    Strategy to avoid 403 / Human Verification:
+      • Deep Scrape  — first 5 jobs on Page 1 only: visits each viewjob URL
+                       to extract full description + skills.
+      • Shallow Scrape — all remaining jobs (pages 1-5, jobs 6+): extracts
+                         Title, Company, Location, Salary from the search
+                         results HTML only — no detail page navigation.
+                         Sets skills=[] to keep frontend/scoring safe.
+
+    Volume targets:
+      3days → ~80+ jobs   (3 pages)
+      week  → ~120+ jobs  (4 pages)
+      month → ~150+ jobs  (5 pages)
     """
     search_city = f"{city}, India" if city.lower().strip() in INDIAN_CITIES else city
     fromage = DATE_FILTER_MAP.get(date_filter.lower().strip(), 30)
 
+    # Determine page count based on date_filter
+    date_key = date_filter.lower().strip()
+    if date_key in ("3days", "last 3 days"):
+        max_pages = 3
+    elif date_key in ("week", "last week"):
+        max_pages = 4
+    else:
+        max_pages = 5
+
     driver = get_stealth_driver()
     jobs: list[dict] = []
+    deep_done = False  # flag: deep scrape only runs once (first 5 of page 1)
 
     try:
         if not load_indeed_session(driver):
@@ -879,44 +422,100 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "month") -> l
         close_popups(driver)
 
         if not wait_for_cards(driver):
-            print("  ⚠️  Indeed: no cards found")
+            print("  ⚠️  Indeed: no cards found on page 1")
             return []
 
-        human_scroll(driver)
-        time.sleep(random.uniform(0.8, 1.5))
+        for page in range(max_pages):
+            page_url = base_url if page == 0 else f"{base_url}&start={page * 10}"
+            print(f"  📄 Indeed page {page + 1}/{max_pages}")
 
-        stubs = collect_job_stubs(driver, city)
-        if not stubs:
-            return []
+            if page > 0:
+                driver.get(page_url)
+                # Reduced sleep for pagination pages
+                time.sleep(random.uniform(1.0, 2.0))
+                close_popups(driver)
+                if not wait_for_cards(driver, timeout=10):
+                    print(f"  ℹ️  Indeed: no cards on page {page + 1} — stopping pagination")
+                    break
 
-        # Fetch skills for first 15 stubs max (speed cap)
-        detailed = fetch_skills_for_stubs(driver, stubs[:15], base_url)
+            human_scroll(driver)
+            time.sleep(random.uniform(0.8, 1.5))
 
-        for d in detailed:
-            skills_raw = d.get("Skills", [])
-            if isinstance(skills_raw, str):
-                skills_list = [s.strip() for s in skills_raw.split(",") if s.strip() and s.strip().lower() != "not listed"]
-            elif isinstance(skills_raw, list):
-                skills_list = [str(s).strip() for s in skills_raw if str(s).strip()]
+            stubs = collect_job_stubs(driver, city)
+            if not stubs:
+                print(f"  ⚠️  Indeed: no stubs on page {page + 1}")
+                break
+
+            print(f"       Stubs collected on page {page + 1}: {len(stubs)}")
+
+            if page == 0 and not deep_done:
+                # ── DEEP SCRAPE: first 5 jobs of page 1 ──────────────────
+                deep_stubs   = stubs[:5]
+                shallow_stubs = stubs[5:]
+                deep_done = True
+
+                print(f"       Deep scraping {len(deep_stubs)} jobs...")
+                detailed = fetch_skills_for_stubs(driver, deep_stubs, page_url)
+
+                for d in detailed:
+                    skills_raw = d.get("Skills", [])
+                    if isinstance(skills_raw, str):
+                        skills_list = [
+                            s.strip() for s in skills_raw.split(",")
+                            if s.strip() and s.strip().lower() != "not listed"
+                        ]
+                    elif isinstance(skills_raw, list):
+                        skills_list = [str(s).strip() for s in skills_raw if str(s).strip()]
+                    else:
+                        skills_list = []
+
+                    jobs.append({
+                        "source":          "Indeed",
+                        "title":           d.get("Job_Title", ""),
+                        "employer":        d.get("Company", "N/A"),
+                        "location":        d.get("Location", city),
+                        "salary":          d.get("Salary", "Not disclosed"),
+                        "duration":        "N/A",
+                        "status":          d.get("Status", "Active"),
+                        "apply_link":      d.get("Link", ""),
+                        "description":     "",
+                        "skills":          skills_list,
+                        "qualifications":  list(skills_list),
+                        "employment_type": d.get("Job_Type", "Permanent"),
+                        "posted_at":       datetime.now(timezone.utc).isoformat(),
+                        "employer_logo":   "",
+                    })
+
+                # Remaining page-1 stubs go through shallow scrape below
+                stubs_to_shallow = shallow_stubs
             else:
-                skills_list = []
+                # All stubs on pages 2-5 are shallow
+                stubs_to_shallow = stubs
 
-            jobs.append({
-                "source":          "Indeed",
-                "title":           d.get("Job_Title", ""),
-                "employer":        d.get("Company", "N/A"),
-                "location":        d.get("Location", city),
-                "salary":          d.get("Salary", "Not disclosed"),
-                "duration":        "N/A",
-                "status":          d.get("Status", "Active"),
-                "apply_link":      d.get("Link", ""),
-                "description":     "",
-                "skills":          skills_list,
-                "qualifications":  list(skills_list),
-                "employment_type": d.get("Job_Type", "Permanent"),
-                "posted_at":       datetime.now(timezone.utc).isoformat(),
-                "employer_logo":   "",
-            })
+            # ── SHALLOW SCRAPE: no detail page navigation ─────────────────
+            for stub in stubs_to_shallow:
+                jobs.append({
+                    "source":          "Indeed",
+                    "title":           stub.get("Job_Title", ""),
+                    "employer":        stub.get("Company", "N/A"),
+                    "location":        stub.get("Location", city),
+                    "salary":          stub.get("Salary", "Not disclosed"),
+                    "duration":        "N/A",
+                    "status":          stub.get("Status", "Active"),
+                    "apply_link":      stub.get("Link", ""),
+                    "description":     "",
+                    "skills":          [],   # empty list — safe for frontend/scoring
+                    "qualifications":  [],
+                    "employment_type": stub.get("Job_Type", "Permanent"),
+                    "posted_at":       datetime.now(timezone.utc).isoformat(),
+                    "employer_logo":   "",
+                })
+
+            print(f"       Indeed running total after page {page + 1}: {len(jobs)}")
+
+            # Reduced inter-page sleep
+            if page < max_pages - 1:
+                time.sleep(random.uniform(1.0, 2.0))
 
     except Exception as exc:
         print(f"  ❌ Indeed fast scraper error: {exc}")

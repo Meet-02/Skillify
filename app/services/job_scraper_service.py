@@ -74,112 +74,67 @@ DOMAIN_KEYWORDS: dict[str, str] = {
 }
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# SKILL EXTRACTION  (fast keyword-only, no spaCy)
-# ════════════════════════════════════════════════════════════════════════════
-KNOWN_SKILLS = sorted([
-    "python","java","javascript","typescript","c++","c#","c","ruby","go","golang",
-    "php","swift","kotlin","scala","rust","perl","r","dart","objective-c","bash",
-    "shell","powershell","groovy","lua","haskell","elixir","erlang","vba","matlab",
-    "react","angular","vue","html","css","sass","scss","bootstrap","jquery",
-    "next.js","nuxt.js","gatsby","remix","astro","svelte","sveltekit","webpack",
-    "vite","redux","zustand","tailwind","tailwindcss","material ui","graphql",
-    "three.js","d3.js","pwa","webgl","webassembly","rxjs","storybook",
-    "node.js","nodejs","express","expressjs","nestjs","fastify","django","flask",
-    "fastapi","spring","spring boot","spring mvc","hibernate","rails","laravel",
-    "symfony","asp.net",".net",".net core","gin","fiber","phoenix","grpc",
-    "microservices","rest api","restful","soap","websocket","oauth","jwt","swagger",
-    "sql","mysql","postgresql","postgres","sqlite","mssql","mariadb","oracle",
-    "mongodb","redis","elasticsearch","cassandra","dynamodb","firebase","firestore",
-    "snowflake","bigquery","redshift","databricks","neo4j","influxdb","room database",
-    "prisma","sequelize","sqlalchemy","typeorm","mongoose",
-    "aws","azure","gcp","google cloud","ec2","s3","lambda","docker","kubernetes",
-    "helm","istio","terraform","pulumi","ansible","puppet","chef","vagrant",
-    "jenkins","github actions","gitlab ci","circleci","argocd","prometheus",
-    "grafana","datadog","splunk","elk stack","nginx","apache","linux","ubuntu",
-    "devops","sre","ci/cd","gitops","devsecops","sonarqube","vault","consul",
-    "kafka","rabbitmq","activemq","nats","cdn","vpc","iam",
-    "machine learning","deep learning","nlp","computer vision","generative ai",
-    "llm","tensorflow","pytorch","keras","jax","scikit-learn","xgboost","lightgbm",
-    "pandas","numpy","scipy","matplotlib","seaborn","plotly","spark","pyspark",
-    "hadoop","hive","flink","airflow","prefect","dagster","dbt","tableau","power bi",
-    "looker","data science","data analysis","data engineering","mlops","mlflow",
-    "kubeflow","opencv","yolo","hugging face","langchain","openai","anthropic",
-    "vector database","pinecone","rag","embeddings","fine-tuning","prompt engineering",
-    "a/b testing","statistics","feature engineering",
-    "android","android sdk","android studio","jetpack compose","viewmodel",
-    "livedata","room database","retrofit","okhttp","hilt","dagger","koin",
-    "mvvm","mvp","mvi","coroutines","rxjava","rxandroid","workmanager",
-    "navigation component","firebase","fcm","crashlytics","espresso","gradle",
-    "ios","swift","swiftui","uikit","core data","combine","xcode","cocoapods",
-    "spm","arkit","healthkit","xctest","fastlane",
-    "react native","flutter","dart","expo","ionic",
-    "git","github","gitlab","bitbucket","jira","confluence","trello","asana",
-    "notion","figma","sketch","zeplin","adobe xd","postman","swagger",
-    "selenium","appium","cypress","playwright","puppeteer","espresso","xcuitest",
-    "junit","testng","pytest","jest","mocha","chai","cucumber","jmeter","gatling",
-    "k6","tdd","bdd","sonarqube",
-    "oauth","jwt","saml","sso","ldap","ssl","tls","encryption","cybersecurity",
-    "penetration testing","owasp","devsecops","iam","rbac","zero trust",
-    "siem","soar","burp suite","metasploit","kali linux","iso 27001","nist",
-    "microservices","event driven","cqrs","ddd","clean architecture","solid",
-    "design patterns","api gateway","serverless","faas","domain driven design",
-    "blockchain","web3","solidity","ethereum","smart contracts","nft","defi",
-    "hardhat","foundry","ethers.js","web3.js","ipfs","chainlink",
-    "embedded systems","rtos","firmware","microcontroller","arduino","raspberry pi",
-    "esp32","stm32","freertos","zephyr","device drivers","uart","spi","i2c",
-    "mqtt","bluetooth","ble","lorawan","iot","verilog","vhdl","fpga","plc","scada",
-    "seo","sem","ppc","google ads","meta ads","facebook ads","google analytics",
-    "ga4","hubspot","salesforce","marketo","mailchimp","klaviyo","ahrefs","semrush",
-    "marketing automation","content marketing","email marketing","crm","growth hacking",
-    "conversion rate optimization","influencer marketing","affiliate marketing",
-    "financial modeling","financial analysis","accounting","excel","advanced excel",
-    "power bi","tableau","erp","sap","oracle financials","tally","quickbooks",
-    "financial reporting","budgeting","forecasting","valuation","dcf","ifrs","gaap",
-    "investment analysis","risk management","derivatives","treasury","payroll",
-    "recruitment","talent acquisition","sourcing","onboarding","performance management",
-    "hris","hrms","workday","bamboohr","darwinbox","linkedin recruiter","greenhouse",
-    "hr analytics","people analytics","learning and development","compensation",
-    "organizational development","change management","dei","labor law","compliance",
-    "sales","business development","b2b sales","b2c sales","account management",
-    "lead generation","crm","salesforce","hubspot","negotiation","solution selling",
-    "consultative selling","revenue growth","upselling","cross selling","salesforce",
-    "linkedin sales navigator","apollo","outreach", "pipeline management",
-    "operations management","lean","six sigma","supply chain","logistics",
-    "inventory management","procurement","erp","sap","project management","pmp",
-    "scrum","agile","kanban","bpm","sop","quality management","iso 9001","kpi","sla",
-    "rpa","uipath","automation anywhere","process improvement",
-    "content writing","copywriting","content strategy","seo writing","blogging",
-    "technical writing","social media","video editing","youtube","premiere pro",
-    "davinci resolve","podcast","photography","wordpress","cms","canva",
-    "brand voice","proofreading","translation","localization",
-    "graphic design","visual design","brand design","logo design","illustration",
-    "typography","adobe photoshop","adobe illustrator","adobe indesign",
-    "after effects","coreldraw","affinity designer","figma","sketch","canva",
-    "motion graphics","animation","blender","cinema 4d","web design","ui design",
-    "agile","scrum","kanban","waterfall","product management","excel",
-    "powerpoint","communication","leadership","problem solving",
-], key=len, reverse=True)
+import json
 
-_seen: set[str] = set()
-KNOWN_SKILLS = [s for s in KNOWN_SKILLS if s not in _seen and not _seen.add(s)]  # type: ignore[func-returns-value]
+# Use the absolute root path you already defined in the file
+_SERVICE_DIR = Path(__file__).resolve().parent
+_ROOT = _SERVICE_DIR.parent.parent
+SKILLS_JSON_PATH = _ROOT / "app" / "data" / "skills_master_indeed.json"
+
+def load_skills_from_json():
+    """Loads names and synonyms from JSON into a flat, sorted list."""
+    try:
+        if not SKILLS_JSON_PATH.exists():
+            print(f"⚠️ Skills JSON not found at {SKILLS_JSON_PATH}")
+            return []
+            
+        with open(SKILLS_JSON_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        
+        flat_skills = set()
+        for item in data:
+            flat_skills.add(item["name"].lower())
+            if "synonyms" in item:
+                for syn in item["synonyms"]:
+                    flat_skills.add(syn.lower())
+        
+        # Sort by length descending so 'React Native' matches before 'React'
+        return sorted(list(flat_skills), key=len, reverse=True)
+    except Exception as e:
+        print(f"⚠️ Error loading skills JSON: {e}")
+        return []
+
+# Now KNOWN_SKILLS is always synced with your JSON
+KNOWN_SKILLS = load_skills_from_json() 
 
 
 def _extract_skills_fast(text: str) -> list[str]:
-    """Keyword-only skill extraction — runs in <1ms per job."""
-    if not text:
+    """Resilient keyword skill extraction using Regex Lookarounds."""
+    if not text: 
         return []
+    
     tl = text.lower()
-    upper_set = {"sql","html","css","aws","gcp","api","php","nlp","seo","ci/cd",
-                 "ios","npm","git","rest api","restful","mssql","devops","xml",
-                 "sdk","iot","sap","erp","rpa","crm","kpi","sla","bpm","sop",
-                 "tdd","bdd","pmp","okr","dei","ppc","sem","dcf","iam","rbac"}
-    found: set[str] = set()
+    found = set()
+    
     for skill in KNOWN_SKILLS:
-        if re.search(r'\b' + re.escape(skill) + r'\b', tl):
-            found.add(skill.upper() if skill in upper_set else skill.title())
-    return sorted(found)
-
+        skill_clean = skill.lower()
+        # The 'Secret Sauce': Lookarounds catch skills even without spaces around them
+        pattern = r'(?<![a-zA-Z0-9])' + re.escape(skill_clean) + r'(?![a-zA-Z0-9])'
+        
+        if re.search(pattern, tl):
+            # Normalization logic
+            if len(skill_clean) <= 3:
+                found.add(skill_clean.upper())
+            else:
+                special_cases = {"mern", "mean", "rest", "node.js", "mongodb"}
+                if skill_clean in special_cases:
+                    # Professional formatting
+                    mapping = {"node.js": "Node.js", "mongodb": "MongoDB"}
+                    found.add(mapping.get(skill_clean, skill_clean.upper()))
+                else:
+                    found.add(skill_clean.title())
+                
+    return sorted(list(found))
 
 # ════════════════════════════════════════════════════════════════════════════
 # SCORING HELPER
@@ -486,22 +441,34 @@ async def aggregate_jobs(
     _gather_elapsed = _t.time() - _start
     print(f"  ⏱️  All sources gathered in {_gather_elapsed:.1f}s")
 
-    # ── Apply 75/25 split ─────────────────────────────────────────────────
-    # 75% from scrapers, 25% from JSearch
-    # If scrapers return 0, use all JSearch results (fallback)
-    total_target = len(scraper_jobs) + len(jsearch_jobs)
-    if scraper_jobs:
-        scraper_cap = max(1, int(total_target * 0.75))
-        jsearch_cap = max(1, total_target - scraper_cap)
-        combined = scraper_jobs[:scraper_cap] + jsearch_jobs[:jsearch_cap]
-        print(f"  📦 75/25 split: scrapers capped={scraper_cap} jsearch capped={jsearch_cap}")
-    else:
-        # Fallback: all JSearch
-        combined = jsearch_jobs
-        print(f"  ⚠️  No scraper jobs — falling back to 100% JSearch ({len(jsearch_jobs)} jobs)")
+    # ── Log raw counts per source before dedup ────────────────────────────
+    print(f"\n  📊 Raw counts before dedup:")
+    print(f"       Internshala : {sources_hit.get('internshala', 0)} jobs")
+    print(f"       Indeed      : {sources_hit.get('indeed', 0)} jobs")
+    print(f"       JSearch     : {sources_hit.get('jsearch', 0)} jobs")
+    print(f"       Scrapers total: {len(scraper_jobs)} | JSearch total: {len(jsearch_jobs)}")
 
-    print(f"\n  📦 Total raw: scrapers={len(scraper_jobs)} jsearch={len(jsearch_jobs)}")
-    print(f"  📦 After 75/25 split: {len(combined)} jobs | {sources_hit}")
+    # ── Apply split logic ─────────────────────────────────────────────────
+    # If JSearch returned jobs: apply 75% scrapers / 25% JSearch cap.
+    # If JSearch is empty (quota/429): disable the cap entirely and use
+    # 100% of scraper results so volume isn't artificially limited.
+    if jsearch_jobs:
+        total_target = len(scraper_jobs) + len(jsearch_jobs)
+        if scraper_jobs:
+            scraper_cap = max(1, int(total_target * 0.75))
+            jsearch_cap = max(1, total_target - scraper_cap)
+            combined = scraper_jobs[:scraper_cap] + jsearch_jobs[:jsearch_cap]
+            print(f"  📦 75/25 split applied: scrapers capped={scraper_cap} jsearch capped={jsearch_cap}")
+        else:
+            # Scrapers empty — fall back to 100% JSearch
+            combined = jsearch_jobs
+            print(f"  ⚠️  No scraper jobs — falling back to 100% JSearch ({len(jsearch_jobs)} jobs)")
+    else:
+        # JSearch empty (quota/429) — use 100% of scraper results, no cap
+        combined = scraper_jobs
+        print(f"  ⚠️  JSearch returned 0 jobs (quota/429?) — using 100% scraper results ({len(scraper_jobs)} jobs, no cap)")
+
+    print(f"\n  📦 Total raw (before dedup): scrapers={len(scraper_jobs)} jsearch={len(jsearch_jobs)} combined={len(combined)}")
 
     # ── Deduplication by apply_link ────────────────────────────────────────
     seen_links: set[str] = set()
@@ -514,7 +481,7 @@ async def aggregate_jobs(
         elif not link:
             unique_jobs.append(job)
 
-    print(f"  🔗 After dedup: {len(unique_jobs)} jobs")
+    print(f"  🔗 After dedup: {len(unique_jobs)} jobs (removed {len(combined) - len(unique_jobs)} duplicates)")
 
     # ── Score all jobs in thread pool (CPU-bound) ─────────────────────────
     _up = user_profile or {}
@@ -562,27 +529,29 @@ async def aggregate_jobs(
         print(f"  ⚠️  Could not delete CSV: {exc}")
 
     # ── Final Alignment for Frontend ──
+# ── Final Alignment for Frontend ──
     for job in scored_jobs:
-        # Frontend expects an array for skills/qualifications; never leave strings like "Not listed".
+        # 1. Clean up skills: Ensure it is a list, never a string or "Not listed"
         skills_raw = job.get("skills", [])
-        if isinstance(skills_raw, list):
-            skills_list = [str(s).strip() for s in skills_raw if str(s).strip()]
-        elif isinstance(skills_raw, str):
+        if isinstance(skills_raw, str):
             parts = [s.strip() for s in skills_raw.split(",") if s.strip()]
             skills_list = [s for s in parts if s.lower() != "not listed"]
+        elif isinstance(skills_raw, list):
+            skills_list = [str(s).strip() for s in skills_raw if str(s).strip()]
         else:
             skills_list = []
+        
         job["skills"] = skills_list
 
-        # Frontend script.js looks for 'qualifications' to render the small tags
-        if not job.get("qualifications"):
-            job["qualifications"] = skills_list[:4]
+        # 2. Map to qualifications for frontend UI (tags)
+        # This ensures the 'Node, React, Express' tags actually appear on the card
+        job["qualifications"] = skills_list[:6] 
             
-        # Ensure match_score exists for the SVG ring
+        # 3. Ensure match_score exists for the SVG ring
         if "match_score" not in job:
             job["match_score"] = 0
 
-    result = {
+    return {
         "jobs":        scored_jobs,
         "total":       len(scored_jobs),
         "csv_path":    str(csv_path),

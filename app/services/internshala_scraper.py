@@ -133,73 +133,103 @@ INDIAN_CITIES = {
 
 def scrape_internshala_fast(keyword: str, city: str, date_filter: str = "month") -> list[dict]:
     """
-    Lightweight Internshala scraper: 1 page, normalised output.
+    Paginated Internshala scraper: up to 3 pages, normalised output.
+    Card limit increased to 60 to contribute significantly to the 150-job goal.
     Returns list of dicts matching the unified job schema.
     """
     import json as _json
 
     search_city = f"{city}, India" if city.lower().strip() in INDIAN_CITIES else city
-    search_url = (
+
+    # Internshala uses /page-N suffix for pagination
+    base_search_url = (
         f"https://internshala.com/internships/"
         f"keywords-{keyword.replace(' ', '-')}/"
         f"location-{search_city.replace(' ', '-')}"
     )
 
+    # get_stealth_driver already uses --headless; confirmed here
     main_driver = get_stealth_driver()
+    all_job_list: list[dict] = []
     jobs: list[dict] = []
 
     try:
-        print(f"  Internshala: fetching {search_url}")
-        main_driver.get(search_url)
-        time.sleep(4)
-        main_driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+        for page_num in range(1, 4):  # pages 1, 2, 3
+            if page_num == 1:
+                page_url = base_search_url
+            else:
+                page_url = f"{base_search_url}/page-{page_num}"
 
-        soup = BeautifulSoup(main_driver.page_source, 'html.parser')
-        cards = soup.find_all('div', class_=re.compile('individual_internship'))
+            print(f"  Internshala: fetching page {page_num} → {page_url}")
+            main_driver.get(page_url)
+            time.sleep(4)
+            main_driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
 
-        job_list = []
-        for card in cards[:20]:
-            if card.find_parent('a', class_='marketing_ads_card'):
-                continue
+            soup = BeautifulSoup(main_driver.page_source, 'html.parser')
+            cards = soup.find_all('div', class_=re.compile('individual_internship'))
 
-            title_elem = card.select_one('a.job-title-href') or card.select_one('.job-internship-name a')
-            company_elem = card.select_one('p.company-name')
-            if not title_elem or not company_elem:
-                continue
+            page_jobs = 0
+            for card in cards:
+                if card.find_parent('a', class_='marketing_ads_card'):
+                    continue
 
-            duration = "Not specified"
-            items = card.find_all('div', class_='row-1-item')
-            if len(items) >= 3:
-                duration = items[2].text.strip() if items[2] else "Not specified"
+                title_elem = card.select_one('a.job-title-href') or card.select_one('.job-internship-name a')
+                company_elem = card.select_one('p.company-name')
+                if not title_elem or not company_elem:
+                    continue
 
-            status_elem = (
-                card.select_one('.status-info span') or
-                card.select_one('.status-success span') or
-                card.select_one('.status span') or
-                card.select_one('.status-inactive span')
-            )
+                duration = "Not specified"
+                items = card.find_all('div', class_='row-1-item')
+                if len(items) >= 3:
+                    duration = items[2].text.strip() if items[2] else "Not specified"
 
-            href = title_elem.get('href', '')
-            detail_url = f"https://internshala.com{href}" if href.startswith('/') else href
+                status_elem = (
+                    card.select_one('.status-info') or
+                    card.select_one('.status-success') or
+                    card.select_one('.status') or
+                    card.select_one('.status-inactive ')
+                )
 
-            job_list.append({
-                'title':      title_elem.text.strip(),
-                'company':    company_elem.text.strip(),
-                'detail_url': detail_url,
-                'stipend':    card.select_one('span.stipend').text.strip() if card.select_one('span.stipend') else "N/A",
-                'duration':   duration,
-                'status':     status_elem.text.strip() if status_elem else "Active",
-            })
+                href = title_elem.get('href', '')
+                detail_url = f"https://internshala.com{href}" if href.startswith('/') else href
+
+                all_job_list.append({
+                    'title':      title_elem.text.strip(),
+                    'company':    company_elem.text.strip(),
+                    'detail_url': detail_url,
+                    'stipend':    card.select_one('span.stipend').text.strip() if card.select_one('span.stipend') else "N/A",
+                    'duration':   duration,
+                    'status':     status_elem.text.strip() if status_elem else "Active",
+                })
+                page_jobs += 1
+
+                # Cap total at 60 across all pages
+                if len(all_job_list) >= 60:
+                    break
+
+            print(f"       Internshala page {page_num}: {page_jobs} cards | running total: {len(all_job_list)}")
+
+            if len(all_job_list) >= 60:
+                break
+
+            # No page found (redirected back to page 1 or empty)
+            if page_jobs == 0:
+                print(f"  ℹ️  Internshala: no cards on page {page_num} — stopping pagination")
+                break
 
         main_driver.quit()
         main_driver = None
 
-        # Parallel detail fetching
+        print(f"  Internshala: {len(all_job_list)} cards collected before detail fetch")
+
+        # Parallel detail fetching for all collected jobs
         results = []
-        if job_list:
+        if all_job_list:
             with ThreadPoolExecutor(max_workers=5) as executor:
-                results = list(executor.map(fetch_job_details, job_list))
+                results = list(executor.map(fetch_job_details, all_job_list))
+
+        print(f"  Internshala: {len(results)} detail pages fetched")
 
         # Normalise to unified schema
         for d in results:

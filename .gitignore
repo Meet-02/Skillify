@@ -1,7 +1,15 @@
 .env
 test.py
-app/data/skills_master.json
-app/static/resumes
+app/static/resumes/
+tmp/jobs_cache/
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+.DS_Store
+app/services/indeed_profile/
+undetected_chromedriver/
+*.pkl
 app/services/indeed_profile/Safe Browsing/UrlMalBin.store.4_13419277716466179
 app/services/indeed_profile
 app/services/indeed_cookies.pkl
