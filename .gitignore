@@ -4,3 +4,4 @@ app/data/skills_master.json
 app/static/resumes
 app/services/indeed_profile/Safe Browsing/UrlMalBin.store.4_13419277716466179
 app/services/indeed_profile
+app/services/indeed_cookies.pkl

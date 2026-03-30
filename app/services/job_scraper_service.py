@@ -462,10 +462,14 @@ async def aggregate_jobs(
         done = await asyncio.gather(*futures.values(), return_exceptions=True)
         for src, result in zip(futures.keys(), done):
             if isinstance(result, Exception):
+                if src == "indeed":
+                    print(f"  ❌ indeed FAILED with exception (possible timeout/path issue): {result!r}")
                 print(f"  ❌ {src} FAILED: {result}")
                 sources_hit[src] = 0
             else:
                 print(f"  ✅ {src} returned {len(result)} jobs")
+                if src == "indeed" and len(result) == 0:
+                    print("  ⚠️  indeed returned 0 jobs. Check the earlier 'Indeed fast scraper error:' log for timeout/path details.")
                 sources_hit[src] = len(result)
                 scraper_jobs.extend(result)
 

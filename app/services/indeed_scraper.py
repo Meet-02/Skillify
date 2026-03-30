@@ -1,5 +1,6 @@
 import time
 import os
+from pathlib import Path
 import re
 import random
 import pickle
@@ -562,7 +563,6 @@ META_SNIPPET_SEL    = 'span.css-zydy3i'
 RESPONSE_SEL        = 'div.mosaic-provider-jobcards-1f1q1js'
 NEXT_PAGE_SEL       = 'a[aria-label="Next Page"]'
 JD_PANE_SEL         = '#jobDescriptionText'
-COOKIES_FILE        = "indeed_cookies.pkl"
  
 # ─────────────────────────────────────────────────────────────
 # ⚙️  FIRST RUN:  FIRST_RUN = True  → log in manually, saves cookies
@@ -574,7 +574,11 @@ FIRST_RUN = False  # ← Change to True only for first-time login
 # ─────────────────────────────────────────────────────────────
 # SESSION
 # ─────────────────────────────────────────────────────────────
- 
+
+SERVICE_DIR = Path(__file__).resolve().parent
+COOKIES_FILE = str(SERVICE_DIR / "indeed_cookies.pkl")
+USER_DATA_DIR = str(SERVICE_DIR / "indeed_profile")
+
 def save_indeed_session(driver):
     driver.get("https://in.indeed.com/account/login")
     print("\n👉 Log in to Indeed in the browser window.")
@@ -583,36 +587,37 @@ def save_indeed_session(driver):
     print(f"✅ Session saved. Set FIRST_RUN = False and run again.\n")
  
  
-def load_indeed_session(driver):
-    if not os.path.exists(COOKIES_FILE):
-        print(f"⚠️  No cookies found. Set FIRST_RUN = True first.")
-        return False
-    driver.get("https://in.indeed.com")
-    time.sleep(3)
-    for cookie in pickle.load(open(COOKIES_FILE, "rb")):
-        try:
-            driver.add_cookie(cookie)
-        except:
-            pass
-    driver.refresh()
-    time.sleep(3)
-    print("✅ Indeed session restored.")
-    return True
- 
- 
-# ─────────────────────────────────────────────────────────────
-# DRIVER & HELPERS
-# ─────────────────────────────────────────────────────────────
- 
 def get_stealth_driver():
     options = uc.ChromeOptions()
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    user_data_dir = os.path.join(script_dir, "indeed_profile")
-    if not os.path.exists(user_data_dir):
-        os.makedirs(user_data_dir)
-    options.add_argument(f"--user-data-dir={user_data_dir}")
-
+    if not os.path.exists(USER_DATA_DIR):
+        os.makedirs(USER_DATA_DIR)
+    
+    options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
+    # Fix for threading: prevent multiple instances from crashing
+    options.add_argument("--no-first-run")
+    options.add_argument("--no-service-autorun")
+    options.add_argument("--password-store=basic")
+    
     return uc.Chrome(options=options, version_main=146)
+
+def load_indeed_session(driver):
+    if not os.path.exists(COOKIES_FILE):
+        print(f"⚠️ No cookies found at {COOKIES_FILE}. Set FIRST_RUN = True first.")
+        return False
+    
+    driver.get("https://in.indeed.com")
+    time.sleep(3)
+    try:
+        with open(COOKIES_FILE, "rb") as f:
+            cookies = pickle.load(f)
+            for cookie in cookies:
+                driver.add_cookie(cookie)
+        driver.refresh()
+        time.sleep(3)
+        return True
+    except Exception as e:
+        print(f"❌ Cookie load error: {e}")
+        return False
  
  
 def close_popups(driver):
