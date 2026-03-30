@@ -3,6 +3,7 @@ fastapi==0.110.0
 uvicorn[standard]==0.29.0
 python-multipart
 jinja2
+itsdangerous>=2.1.2
 
 # Resume Parsing
 pdfplumber==0.11.0
