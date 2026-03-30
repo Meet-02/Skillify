@@ -10,7 +10,7 @@ undetected_chromedriver/
 
 # --- User Uploads & Temporary Files ---
 # Keeps the folder but ignores the uploaded PDFs
-app/static/resumes/*
+static/resumes/*
 tmp/jobs_cache/
 
 # --- Python System Files ---
