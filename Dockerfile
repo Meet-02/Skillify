@@ -21,8 +21,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download the spaCy model used in your project
-RUN python -m spacy download en_core_web_sm
+# Download the spaCy model directly via pip
+RUN pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
 
 # Copy the rest of your application code
 COPY . .
