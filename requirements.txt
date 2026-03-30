@@ -23,7 +23,7 @@ SQLAlchemy
 pymysql
 
 # AI and External APIs
-google-generativeai
+google-generativeai==0.8.6
 httpx>=0.27.0
 
 # Job Scraping
