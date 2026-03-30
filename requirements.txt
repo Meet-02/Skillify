@@ -36,3 +36,5 @@ fake-useragent
 # Environment and Utilities
 python-dotenv==1.0.1
 pydantic==2.6.4
+
+argon2-cffi==23.1.0
