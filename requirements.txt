@@ -1,40 +1,21 @@
-# Web Framework and Server
 fastapi==0.110.0
 uvicorn[standard]==0.29.0
 python-multipart
 jinja2
 itsdangerous>=2.1.2
-
-# Resume Parsing
 pdfplumber==0.11.0
-pdfminer.six==20231228
-
-# Natural Language Processing (NLP) & Data
 spacy==3.7.4
-scikit-learn
-numpy==1.26.4
-pandas
-
-# Authentication & Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]
 argon2-cffi==23.1.0
-
-# Database
 SQLAlchemy
 pymysql
-
-# AI and External APIs
+pandas
 google-genai
 httpx>=0.27.0
-
-# Job Scraping
 selenium==4.21.0
 webdriver-manager==4.0.2
-beautifulsoup4==4.12.3
 undetected-chromedriver
 fake-useragent
-
-# Environment and Utilities
 python-dotenv==1.0.1
 pydantic==2.6.4

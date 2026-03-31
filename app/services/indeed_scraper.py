@@ -4,7 +4,10 @@ from pathlib import Path
 import re
 import random
 import pickle
+import json
+import requests
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 import undetected_chromedriver as uc
 from bs4 import BeautifulSoup
@@ -26,6 +29,40 @@ DATE_FILTER_MAP: dict[str, int] = {
     "month": 30, "last month": 30,
 }
 
+def fetch_indeed_details(job_data):
+    """
+    Fast parallel fetcher using requests. 
+    Indeed often blocks simple requests, so we use headers.
+    """
+    start_time = time.time()
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://in.indeed.com/"
+        }
+        # Indeed detail pages are usually reachable via this URL pattern
+        res = requests.get(job_data['Link'], headers=headers, timeout=10)
+        
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            pane_el = soup.select_one('#jobDescriptionText')
+            if pane_el:
+                jd_text = pane_el.get_text(separator=" ", strip=True)
+                job_data['Skills'] = extract_skills(jd_text)
+            else:
+                job_data['Skills'] = []
+        else:
+            job_data['Skills'] = []
+
+    except Exception as e:
+        job_data['Skills'] = []
+    
+    finally:
+        elapsed = time.time() - start_time
+        print(f"⏱  {job_data['Job_Title'][:30]} took {elapsed:.2f}s")
+    
+    return job_data
 
 import json
 
@@ -76,10 +113,10 @@ def extract_skills(text: str) -> list:
 # ─────────────────────────────────────────────────────────────
 CARD_SELECTOR       = 'div.job_seen_beacon'
 TITLE_LINK_SELECTOR = 'h2.jobTitle a'
-TITLE_SELECTOR      = 'h2.jobTitle a span'
-COMPANY_SELECTOR    = 'span[data-testid="company-name"]'
-LOCATION_SELECTOR   = 'div[data-testid="text-location"]'
-SALARY_SELECTOR     = 'li.salary-snippet-container span.css-zydy3i'
+TITLE_SELECTOR      = 'h2.jobTitle a'
+COMPANY_SELECTOR    = '[data-testid="company-name"]'
+LOCATION_SELECTOR   = '[data-testid="text-location"]'
+SALARY_SELECTOR     = '.salary-snippet-container, .estimated-salary-container'
 META_SNIPPET_SEL    = 'span.css-zydy3i'
 RESPONSE_SEL        = 'div.mosaic-provider-jobcards-1f1q1js'
 NEXT_PAGE_SEL       = 'a[aria-label="Next Page"]'
@@ -108,19 +145,6 @@ def save_indeed_session(driver):
     print(f"✅ Session saved. Set FIRST_RUN = False and run again.\n")
  
  
-# def get_stealth_driver():
-#     options = uc.ChromeOptions()
-#     if not os.path.exists(USER_DATA_DIR):
-#         os.makedirs(USER_DATA_DIR)
-    
-#     options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
-#     # Fix for threading: prevent multiple instances from crashing
-#     options.add_argument("--no-first-run")
-#     options.add_argument("--no-service-autorun")
-#     options.add_argument("--password-store=basic")
-    
-#     return uc.Chrome(options=options, version_main=146)
-
 def get_stealth_driver():
     options = uc.ChromeOptions()
     if not os.path.exists(USER_DATA_DIR):
@@ -128,20 +152,41 @@ def get_stealth_driver():
     
     options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
     
-    # --- ADD HEADLESS MODE HERE ---
-    options.add_argument("--headless=new")  # Use "--headless=new" if using latest Chrome
-    options.add_argument("--no-sandbox")            # <--- ADD THIS
-    options.add_argument("--disable-dev-shm-usage")  # <--- ADD THIS
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-    # ------------------------------
-
-    # Fix for threading: prevent multiple instances from crashing
+    # 1. REMOVED Headless so you can see if a Captcha appears
+    # 2. Keep these for stability
     options.add_argument("--no-first-run")
     options.add_argument("--no-service-autorun")
     options.add_argument("--password-store=basic")
     
-    return uc.Chrome(options=options)
+    # 3. Use a realistic User-Agent to help bypass blocks
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+    
+    # 4. use_subprocess=True is good for FastAPI threading
+    return uc.Chrome(options=options, version_main=146, use_subprocess=True)
+
+# def get_stealth_driver():
+#     options = uc.ChromeOptions()
+#     if not os.path.exists(USER_DATA_DIR):
+#         os.makedirs(USER_DATA_DIR)
+    
+#     options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
+    
+#     # --- ADD HEADLESS MODE HERE ---
+#     options.add_argument("--headless=new")  # Use "--headless=new" if using latest Chrome
+#     options.add_argument("--no-sandbox")            # <--- ADD THIS
+#     options.add_argument("--disable-dev-shm-usage")  # <--- ADD THIS
+#     options.add_argument("--disable-gpu")
+#     options.add_argument("--window-size=1920,1080")
+#     # ------------------------------
+
+#     # Fix for threading: prevent multiple instances from crashing
+#     options.add_argument("--no-first-run")
+#     options.add_argument("--no-service-autorun")
+#     options.add_argument("--password-store=basic")
+#     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+    
+#     return uc.Chrome(options=options,version_main=146,use_subprocess=True)
+#     return driver
 
 def load_indeed_session(driver):
     if not os.path.exists(COOKIES_FILE):
@@ -202,64 +247,52 @@ def wait_for_cards(driver, timeout=15):
 # ─────────────────────────────────────────────────────────────
  
 def collect_job_stubs(driver, city):
-    """
-    Parse the current search results page and return a list of job stubs.
-    Each stub has all card info + the jk ID needed to visit the detail page.
-    Does NOT navigate away from the results page.
-    """
-    soup  = BeautifulSoup(driver.page_source, 'html.parser')
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
     cards = soup.select(CARD_SELECTOR)
-    print(f"  → Found {len(cards)} cards on results page.")
- 
+    print(f"   → Found {len(cards)} cards on results page.")
+
     stubs = []
     seen_jk = set()
- 
+
     for card in cards:
         try:
-            title_link = card.select_one(TITLE_LINK_SELECTOR)
-            if not title_link:
-                continue
- 
-            jk_id = title_link.get('data-jk', '')
-            if not jk_id or jk_id in seen_jk:
-                continue
+            # 1. Extract Title and ID
+            title_el = card.select_one(TITLE_SELECTOR)
+            if not title_el: continue
+            
+            jk_id = title_el.get('data-jk') or title_el.get('id', '').replace('job_', '')
+            if not jk_id or jk_id in seen_jk: continue
             seen_jk.add(jk_id)
- 
-            title_span = card.select_one(TITLE_SELECTOR)
-            title_text = title_span.get_text(strip=True) if title_span else title_link.get_text(strip=True)
- 
-            company_el  = card.select_one(COMPANY_SELECTOR)
+
+            title_text = title_el.get_text(strip=True)
+
+            # 2. Extract Company
+            company_el = card.select_one(COMPANY_SELECTOR)
+            company = company_el.get_text(strip=True) if company_el else "N/A"
+
+            # 3. Extract Location
             location_el = card.select_one(LOCATION_SELECTOR)
-            company     = company_el.get_text(strip=True)  if company_el  else "N/A"
-            location    = location_el.get_text(strip=True) if location_el else city
- 
-            salary_el   = card.select_one(SALARY_SELECTOR)
-            salary      = salary_el.get_text(strip=True) if salary_el else "Not disclosed"
- 
-            all_snippets = [s.get_text(strip=True) for s in card.select(META_SNIPPET_SEL)]
-            other_meta   = [m for m in all_snippets if m != salary]
-            job_type     = other_meta[0] if other_meta else "N/A"
-            perks        = ", ".join(other_meta[1:]) if len(other_meta) > 1 else "N/A"
- 
-            all_resp  = [d.get_text(strip=True) for d in card.select(RESPONSE_SEL)]
-            resp_filt = [r for r in all_resp if r not in all_snippets and len(r) > 3]
-            status    = resp_filt[0] if resp_filt else "Standard"
- 
+            location = location_el.get_text(strip=True) if location_el else city
+
+            # 4. Extract Salary (Using the new class found in your HTML)
+            salary_el = card.select_one('div.salary-snippet-container') or card.select_one('div.metadata.salary-snippet-container')
+            salary = salary_el.get_text(strip=True) if salary_el else "Not disclosed"
+
             stubs.append({
-                "jk_id":    jk_id,
+                "jk_id": jk_id,
                 "Job_Title": title_text,
-                "Company":   company,
-                "City":      city,
-                "Location":  location,
-                "Salary":    salary,
-                "Job_Type":  job_type,
-                "Perks":     perks,
-                "Status":    status,
-                "Link":      f"https://in.indeed.com/viewjob?jk={jk_id}",
+                "Company": company,
+                "City": city,
+                "Location": location,
+                "Salary": salary,
+                "Job_Type": "N/A",
+                "Status": "Active",
+                "Link": f"https://in.indeed.com/viewjob?jk={jk_id}",
             })
-        except:
+        except Exception as e:
+            print(f"      ⚠️ Error parsing card: {e}")
             continue
- 
+
     return stubs
  
  
@@ -425,22 +458,15 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "month") -> l
 
     driver = get_stealth_driver()
     jobs: list[dict] = []
-    deep_done = False  # flag: deep scrape only runs once (first 5 of page 1)
+    deep_done = False 
 
     try:
         if not load_indeed_session(driver):
-            print("  ⚠️  Indeed: no saved session — skipping")
             return []
 
-        base_url = (
-            f"https://in.indeed.com/jobs"
-            f"?q={keyword.replace(' ', '+')}"
-            f"&l={search_city.replace(' ', '+')}"
-            f"&fromage={fromage}"
-        )
-        print(f"  🔎 Indeed base_url: {base_url}")
+        base_url = f"https://in.indeed.com/jobs?q={keyword.replace(' ', '+')}&l={search_city.replace(' ', '+')}&fromage={fromage}"
         driver.get(base_url)
-        time.sleep(random.uniform(4, 6))
+        time.sleep(8) # Wait for the slow two-pane layout
         close_popups(driver)
 
         if not wait_for_cards(driver):
@@ -461,6 +487,7 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "month") -> l
                     break
 
             human_scroll(driver)
+            
             time.sleep(random.uniform(0.8, 1.5))
 
             stubs = collect_job_stubs(driver, city)
@@ -480,38 +507,24 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "month") -> l
                 detailed = fetch_skills_for_stubs(driver, deep_stubs, page_url)
 
                 for d in detailed:
-                    skills_raw = d.get("Skills", [])
-                    if isinstance(skills_raw, str):
-                        skills_list = [
-                            s.strip() for s in skills_raw.split(",")
-                            if s.strip() and s.strip().lower() != "not listed"
-                        ]
-                    elif isinstance(skills_raw, list):
-                        skills_list = [str(s).strip() for s in skills_raw if str(s).strip()]
-                    else:
-                        skills_list = []
-
                     jobs.append({
-                        "source":          "Indeed",
-                        "title":           d.get("Job_Title", ""),
-                        "employer":        d.get("Company", "N/A"),
-                        "location":        d.get("Location", city),
-                        "salary":          d.get("Salary", "Not disclosed"),
-                        "duration":        "N/A",
-                        "status":          d.get("Status", "Active"),
-                        "apply_link":      d.get("Link", ""),
-                        "description":     "",
-                        "skills":          skills_list,
-                        "qualifications":  list(skills_list),
+                        "source": "Indeed",
+                        "title": d.get("Job_Title", ""),
+                        "employer": d.get("Company", "N/A"),
+                        "location": d.get("Location", city),
+                        "salary": d.get("Salary", "Not disclosed"),
+                        "duration": "N/A",
+                        "status": "Active",
+                        "apply_link": d.get("Link", ""),
+                        "description": "",
+                        "skills": d.get("Skills", []),
+                        "qualifications": d.get("Skills", []),
                         "employment_type": d.get("Job_Type", "Permanent"),
-                        "posted_at":       datetime.now(timezone.utc).isoformat(),
-                        "employer_logo":   "",
+                        "posted_at": datetime.now(timezone.utc).isoformat(),
+                        "employer_logo": "",
                     })
-
-                # Remaining page-1 stubs go through shallow scrape below
                 stubs_to_shallow = shallow_stubs
             else:
-                # All stubs on pages 2-5 are shallow
                 stubs_to_shallow = stubs
 
             # ── SHALLOW SCRAPE: no detail page navigation ─────────────────
