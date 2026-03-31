@@ -160,7 +160,11 @@ def get_stealth_driver():
     
     # 3. Use a realistic User-Agent to help bypass blocks
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-    
+    prefs = {
+        "profile.managed_default_content_settings.images": 2, # Block Images
+        "profile.default_content_settings.stylesheets": 2,    # Block CSS (Optional, test if it breaks layout)
+    }
+    options.add_experimental_option("prefs", prefs)
     # 4. use_subprocess=True is good for FastAPI threading
     return uc.Chrome(options=options, version_main=146, use_subprocess=True)
 

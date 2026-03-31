@@ -381,62 +381,55 @@ async def aggregate_jobs(
 
     import time as _t
     _start = _t.time()
-
     loop = asyncio.get_event_loop()
 
-    # ── Launch scrapers in thread-pool + JSearch async ─────────────────────
-    futures: dict[str, Any] = {}
+    # ── PREPARE TASKS ──────────────────────────────────────────────────────
+    tasks = []
 
     if "internshala" in sources:
         from app.services.internshala_scraper import scrape_internshala_fast
-        print(f"  ▶️  Launching Internshala scraper in thread pool...")
-        futures["internshala"] = loop.run_in_executor(
-            _EXECUTOR, scrape_internshala_fast, keyword, city, date_filter
-        )
+        tasks.append(loop.run_in_executor(_EXECUTOR, scrape_internshala_fast, keyword, city, date_filter))
 
     if "indeed" in sources:
         from app.services.indeed_scraper import scrape_indeed_fast
-        print(f"  ▶️  Launching Indeed scraper in thread pool...")
-        futures["indeed"] = loop.run_in_executor(
-            _EXECUTOR, scrape_indeed_fast, keyword, city, date_filter
-        )
+        tasks.append(loop.run_in_executor(_EXECUTOR, scrape_indeed_fast, keyword, city, date_filter))
 
-    # Start JSearch async immediately
-    jsearch_task = None
     if "jsearch" in sources:
-        print(f"  ▶️  Launching JSearch API (async)...")
-        jsearch_task = asyncio.create_task(_scrape_jsearch(keyword, city, date_filter))
+        tasks.append(_scrape_jsearch(keyword, city, date_filter))
 
-    # ── Gather all results ────────────────────────────────────────────────
-    print(f"\n  ⏳ Waiting for all sources to complete...")
+    # ── EXECUTE ALL CONCURRENTLY ──────────────────────────────────────────
+    print(f"  ▶️  Launching all sources ({len(tasks)}) concurrently...")
+    
+    # This is where the magic happens!
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # ── PROCESS RESULTS ───────────────────────────────────────────────────
     scraper_jobs: list[dict] = []
     jsearch_jobs: list[dict] = []
     sources_hit: dict[str, int] = {}
 
-    if futures:
-        done = await asyncio.gather(*futures.values(), return_exceptions=True)
-        for src, result in zip(futures.keys(), done):
-            if isinstance(result, Exception):
-                if src == "indeed":
-                    print(f"  ❌ indeed FAILED with exception (possible timeout/path issue): {result!r}")
-                print(f"  ❌ {src} FAILED: {result}")
-                sources_hit[src] = 0
-            else:
-                print(f"  ✅ {src} returned {len(result)} jobs")
-                if src == "indeed" and len(result) == 0:
-                    print("  ⚠️  indeed returned 0 jobs. Check the earlier 'Indeed fast scraper error:' log for timeout/path details.")
-                sources_hit[src] = len(result)
-                scraper_jobs.extend(result)
+    # Map results back to their sources based on order of 'tasks' list
+    task_idx = 0
+    if "internshala" in sources:
+        res = raw_results[task_idx]
+        if not isinstance(res, Exception):
+            scraper_jobs.extend(res)
+            sources_hit["internshala"] = len(res)
+        task_idx += 1
 
-    if jsearch_task:
-        try:
-            jsearch_results = await jsearch_task
-            print(f"  ✅ jsearch returned {len(jsearch_results)} jobs")
-            sources_hit["jsearch"] = len(jsearch_results)
-            jsearch_jobs.extend(jsearch_results)
-        except Exception as exc:
-            print(f"  ❌ JSearch task FAILED: {exc}")
-            sources_hit["jsearch"] = 0
+    if "indeed" in sources:
+        res = raw_results[task_idx]
+        if not isinstance(res, Exception):
+            scraper_jobs.extend(res)
+            sources_hit["indeed"] = len(res)
+        task_idx += 1
+
+    if "jsearch" in sources:
+        res = raw_results[task_idx]
+        if not isinstance(res, Exception):
+            jsearch_jobs.extend(res)
+            sources_hit["jsearch"] = len(res)
+        task_idx += 1
 
     _gather_elapsed = _t.time() - _start
     print(f"  ⏱️  All sources gathered in {_gather_elapsed:.1f}s")
