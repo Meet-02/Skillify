@@ -92,31 +92,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 1. FETCH & INITIALIZE ---
     async function initDashboard() {
         try {
-            // Show loading state
+            // 1. Check if we already have the data in local storage
+            const cachedData = localStorage.getItem('marketDataCache');
+            if (cachedData) {
+                console.log("Loading from cache...");
+                const skillsData = JSON.parse(cachedData);
+                renderChart(skillsData);
+                renderGrowthList(skillsData);
+                renderTable(skillsData);
+                updateStatsCards(skillsData);
+                setupFilters(skillsData);
+                return; // STOP here, don't call the API
+            }
+    
+            // 2. If no cache, fetch from API
             chartContainer.innerHTML = '<p style="padding:20px; color:#666;">Loading live market data...</p>';
-
             const response = await fetch('/api/market-data');
             const rawData = await response.json();
-
-            // Transform Raw Data into Dashboard Format
             const skillsData = processData(rawData);
-
-            // Render Everything
+    
+            // 3. Save to localStorage for next time
+            localStorage.setItem('marketDataCache', JSON.stringify(skillsData));
+    
             renderChart(skillsData);
             renderGrowthList(skillsData);
             renderTable(skillsData);
-
-            // UPDATE STATS CARDS (Fixed!)
             updateStatsCards(skillsData);
-
-            // Initialize Filters
             setupFilters(skillsData);
-
+    
         } catch (error) {
             console.error("API Error:", error);
             chartContainer.innerHTML = '<p style="color:red; padding:20px;">Error loading data.</p>';
         }
     }
+    
 
     // --- 2. DATA PROCESSOR ---
     function processData(apiData) {
@@ -313,15 +322,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const profileList = document.getElementById('profileList');
 
     if (profileList) {
-        // Auto-load immediately
-        loadMockInternships();
 
         // Wait for click if on the page with the button
         if (btnFindInternships) {
             btnFindInternships.addEventListener('click', () => {
                 btnFindInternships.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
                 btnFindInternships.disabled = true;
-            });
+                
+                // Trigger the search ONLY when the user clicks
+                loadMockInternships(); 
+            }); 
         }
     }
 

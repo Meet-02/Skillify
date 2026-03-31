@@ -41,6 +41,9 @@
         <!-- Header Section -->
         <header class="dashboard-header">
             <h1>Skills Market Dashboard</h1>
+            <button onclick="localStorage.removeItem('marketDataCache'); location.reload();" class="filter-btn">
+                <i class="fas fa-sync"></i> Refresh Live Data
+            </button>
             <p>Track in-demand skills, growth trends, and salary insights across the tech industry.</p>
         </header>
 
