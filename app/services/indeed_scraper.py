@@ -129,7 +129,7 @@ def get_stealth_driver():
     options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
     
     # --- ADD HEADLESS MODE HERE ---
-    options.add_argument("--headless")  # Use "--headless=new" if using latest Chrome
+    options.add_argument("--headless=new")  # Use "--headless=new" if using latest Chrome
     options.add_argument("--no-sandbox")            # <--- ADD THIS
     options.add_argument("--disable-dev-shm-usage")  # <--- ADD THIS
     options.add_argument("--disable-gpu")
@@ -141,7 +141,7 @@ def get_stealth_driver():
     options.add_argument("--no-service-autorun")
     options.add_argument("--password-store=basic")
     
-    return uc.Chrome(options=options, version_main=146)
+    return uc.Chrome(options=options)
 
 def load_indeed_session(driver):
     if not os.path.exists(COOKIES_FILE):

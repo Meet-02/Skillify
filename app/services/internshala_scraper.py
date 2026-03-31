@@ -14,7 +14,7 @@ def get_stealth_driver():
     ua = UserAgent()
     options = Options()
     options.add_argument(f'user-agent={ua.random}')
-    options.add_argument('--headless') # Headless is faster for parallel scraping
+    options.add_argument('--headless=new') # Headless is faster for parallel scraping
     options.add_argument('--no-sandbox')            # <--- ADD THIS
     options.add_argument('--disable-dev-shm-usage')
     options.add_experimental_option("excludeSwitches", ["enable-automation"])

@@ -3,7 +3,8 @@ FROM python:3.11-slim
 
 # Install system dependencies and Google Chrome for Selenium
 # Install system dependencies and Google Chrome for Selenium
-RUN apt-get update && apt-get install -y \
+# Ensure this block is in your Dockerfile to install the real browser
+RUN apt-get update && apt-get install -y google-chrome-stable
     wget \
     gnupg \
     unzip \
