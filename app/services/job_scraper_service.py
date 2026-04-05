@@ -73,7 +73,11 @@ DOMAIN_KEYWORDS: dict[str, str] = {
     "design":     "Graphic Designer",
 }
 
-
+def _score_job_wrapper(args):
+    """Helper for multiprocessing to unpack arguments."""
+    job, user_profile, resume_text = args
+    return _score_job(job, user_profile, resume_text)
+    
 import json
 
 # Use the absolute root path you already defined in the file
@@ -476,26 +480,22 @@ async def aggregate_jobs(
 
     print(f"  🔗 After dedup: {len(unique_jobs)} jobs (removed {len(combined) - len(unique_jobs)} duplicates)")
 
-    # ── Score all jobs in thread pool (CPU-bound) ─────────────────────────
+# ── Score all jobs using MULTIPROCESSING (CPU-bound optimization) ──
     _up = user_profile or {}
     _rt = resume_text or ""
 
     if any(_up.values()) if _up else False:
-        print(f"  🎯 Scoring {len(unique_jobs)} jobs against user profile...")
-        _score_start = _t.time()
-        score_tasks = [
-            loop.run_in_executor(_EXECUTOR, _score_job, job, _up, _rt)
-            for job in unique_jobs
-        ]
-        scored_jobs: list[dict] = list(await asyncio.gather(*score_tasks))
-        print(f"  🎯 Scoring done in {_t.time() - _score_start:.1f}s")
-    else:
-        print(f"  ⚠️  No user profile — assigning match_score=0 to all jobs")
-        for job in unique_jobs:
-            job["match_score"]  = 0.0
-            job["gap_severity"] = "N/A"
-            job["missing_skills"] = {}
-        scored_jobs = unique_jobs
+        print(f"  🎯 Scoring {len(unique_jobs)} jobs using parallel CPU cores...")
+        _score_start = time.time()
+        
+        from concurrent.futures import ProcessPoolExecutor
+        # Use all available CPU cores to score jobs in parallel
+        with ProcessPoolExecutor(max_workers=os.cpu_count()) as process_executor:
+            scored_jobs = list(process_executor.map(
+                _score_job_wrapper, 
+                [(job, _up, _rt) for job in unique_jobs]
+            ))
+        print(f"  🎯 Scoring done in {time.time() - _score_start:.1f}s")
 
     # ── Sort by match_score descending ────────────────────────────────────
     scored_jobs.sort(key=lambda j: j.get("match_score", 0), reverse=True)

@@ -91,41 +91,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- 1. FETCH & INITIALIZE ---
     async function initDashboard() {
-        try {
-            // 1. Check if we already have the data in local storage
-            const cachedData = localStorage.getItem('marketDataCache');
-            if (cachedData) {
-                console.log("Loading from cache...");
-                const skillsData = JSON.parse(cachedData);
-                renderChart(skillsData);
-                renderGrowthList(skillsData);
-                renderTable(skillsData);
-                updateStatsCards(skillsData);
-                setupFilters(skillsData);
-                return; // STOP here, don't call the API
-            }
-    
-            // 2. If no cache, fetch from API
-            chartContainer.innerHTML = '<p style="padding:20px; color:#666;">Loading live market data...</p>';
-            const response = await fetch('/api/market-data');
-            const rawData = await response.json();
-            const skillsData = processData(rawData);
-    
-            // 3. Save to localStorage for next time
-            localStorage.setItem('marketDataCache', JSON.stringify(skillsData));
-    
+        const chartContainer = document.getElementById('skillDemandChart');
+        if (!chartContainer) return;
+
+        // Check cache first to prevent re-fetching on every click
+        const cachedMarketData = localStorage.getItem('marketDataCache');
+        if (cachedMarketData) {
+            const skillsData = JSON.parse(cachedMarketData);
             renderChart(skillsData);
             renderGrowthList(skillsData);
             renderTable(skillsData);
             updateStatsCards(skillsData);
             setupFilters(skillsData);
-    
-        } catch (error) {
-            console.error("API Error:", error);
-            chartContainer.innerHTML = '<p style="color:red; padding:20px;">Error loading data.</p>';
+            return;
         }
-    }
-    
+
+        // Otherwise, fetch fresh data
+        const response = await fetch('/api/market-data');
+        const rawData = await response.json();
+        const skillsData = processData(rawData);
+        localStorage.setItem('marketDataCache', JSON.stringify(skillsData));
+
+        renderChart(skillsData);
+        renderGrowthList(skillsData);
+        renderTable(skillsData);
+        updateStatsCards(skillsData);
+        setupFilters(skillsData);
+
+    } 
+
+
 
     // --- 2. DATA PROCESSOR ---
     function processData(apiData) {
@@ -319,62 +314,62 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- RECRUITER PROFILES LOGIC ---
     const btnFindInternships = document.getElementById('find-internships-btn');
-    const profileList = document.getElementById('profileList');
+const profileList = document.getElementById('profileList');
 
-    if (profileList) {
+if (profileList) {
 
-        // Wait for click if on the page with the button
-        if (btnFindInternships) {
-            btnFindInternships.addEventListener('click', () => {
-                btnFindInternships.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-                btnFindInternships.disabled = true;
-                
-                // Trigger the search ONLY when the user clicks
-                loadMockInternships(); 
-            }); 
-        }
+    // Wait for click if on the page with the button
+    if (btnFindInternships) {
+        btnFindInternships.addEventListener('click', () => {
+            btnFindInternships.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+            btnFindInternships.disabled = true;
+
+            // Trigger the search ONLY when the user clicks
+            loadMockInternships();
+        });
     }
+}
 
-    function loadMockInternships() {
-        const mockData = [
-            {
-                role: "Supply Chain & Logistics Operations",
-                company: "Oneworld Logistics Private Limited (Abhilaya)",
-                activelyHiring: true,
-                logo: "https://logo.clearbit.com/oneworldlogistics.in",
-                location: "Mumbai",
-                stipend: "₹ 12,000 - 15,000 /month",
-                duration: "3 Months",
-                desc: "Coordinate shipments and vendors, process orders, and maintain accurate logistics documentation",
-                skills: ["MS-Excel", "Effective Communication"],
-                posted: "3 weeks ago",
-                ppoOffer: null
-            },
-            {
-                role: "Digital Ad Sales & Business Development",
-                company: "Ventes Avenues",
-                activelyHiring: true,
-                logo: "https://logo.clearbit.com/ventesavenues.com",
-                location: "Gurgaon, Mumbai, Bangalore",
-                stipend: "₹ 14,999 - 15,000 /month",
-                duration: "6 Months",
-                desc: "Generate leads, pitch digital marketing solutions, and handle client outreach via calls, emails, and...",
-                skills: ["Presentation skills", "Client Interaction", "Digital Advertising", "Sales Management", "Business Development", "Interpersonal skills", "Effective Communication"],
-                posted: "1 week ago",
-                ppoOffer: "Job offer starting ₹ 3LPA post internship"
-            }
-        ];
+function loadMockInternships() {
+    const mockData = [
+        {
+            role: "Supply Chain & Logistics Operations",
+            company: "Oneworld Logistics Private Limited (Abhilaya)",
+            activelyHiring: true,
+            logo: "https://logo.clearbit.com/oneworldlogistics.in",
+            location: "Mumbai",
+            stipend: "₹ 12,000 - 15,000 /month",
+            duration: "3 Months",
+            desc: "Coordinate shipments and vendors, process orders, and maintain accurate logistics documentation",
+            skills: ["MS-Excel", "Effective Communication"],
+            posted: "3 weeks ago",
+            ppoOffer: null
+        },
+        {
+            role: "Digital Ad Sales & Business Development",
+            company: "Ventes Avenues",
+            activelyHiring: true,
+            logo: "https://logo.clearbit.com/ventesavenues.com",
+            location: "Gurgaon, Mumbai, Bangalore",
+            stipend: "₹ 14,999 - 15,000 /month",
+            duration: "6 Months",
+            desc: "Generate leads, pitch digital marketing solutions, and handle client outreach via calls, emails, and...",
+            skills: ["Presentation skills", "Client Interaction", "Digital Advertising", "Sales Management", "Business Development", "Interpersonal skills", "Effective Communication"],
+            posted: "1 week ago",
+            ppoOffer: "Job offer starting ₹ 3LPA post internship"
+        }
+    ];
 
-        profileList.innerHTML = '';
+    profileList.innerHTML = '';
 
-        mockData.forEach(intern => {
-            const card = document.createElement('div');
-            card.className = 'recruiter-profile-card';
+    mockData.forEach(intern => {
+        const card = document.createElement('div');
+        card.className = 'recruiter-profile-card';
 
-            const ppoHtml = intern.ppoOffer ? `<span class="rp-ppo"><i class="fas fa-briefcase"></i> ${intern.ppoOffer}</span>` : '';
-            const hiringBadge = intern.activelyHiring ? `<span class="rp-badge-hiring">Actively hiring</span>` : '';
+        const ppoHtml = intern.ppoOffer ? `<span class="rp-ppo"><i class="fas fa-briefcase"></i> ${intern.ppoOffer}</span>` : '';
+        const hiringBadge = intern.activelyHiring ? `<span class="rp-badge-hiring">Actively hiring</span>` : '';
 
-            card.innerHTML = `
+        card.innerHTML = `
                 <div class="rp-header">
                     <div class="rp-title-section">
                         <h3 class="rp-role">${intern.role}</h3>
@@ -405,19 +400,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${ppoHtml}
                 </div>
             `;
-            profileList.appendChild(card);
-        });
+        profileList.appendChild(card);
+    });
 
-        // Small fade in effect for smooth UI loading
-        profileList.style.opacity = 0;
-        setTimeout(() => {
-            profileList.style.transition = 'opacity 0.4s ease';
-            profileList.style.opacity = 1;
-        }, 50);
-    }
+    // Small fade in effect for smooth UI loading
+    profileList.style.opacity = 0;
+    setTimeout(() => {
+        profileList.style.transition = 'opacity 0.4s ease';
+        profileList.style.opacity = 1;
+    }, 50);
+}
 
-    // Initialize Dashboard only if elements exist on the current page
-    if (chartContainer && tableBody) {
-        initDashboard();
-    }
+// Initialize Dashboard only if elements exist on the current page
+if (chartContainer && tableBody) {
+    initDashboard();
+}
 });

@@ -161,8 +161,9 @@ def get_stealth_driver():
     # 3. Use a realistic User-Agent to help bypass blocks
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
     prefs = {
-        "profile.managed_default_content_settings.images": 2, # Block Images
-        "profile.default_content_settings.stylesheets": 2,    # Block CSS (Optional, test if it breaks layout)
+        "profile.managed_default_content_settings.images": 2,
+        "profile.managed_default_content_settings.stylesheets": 2,
+        "profile.managed_default_content_settings.fonts": 2
     }
     options.add_experimental_option("prefs", prefs)
     # 4. use_subprocess=True is good for FastAPI threading
@@ -305,46 +306,34 @@ def collect_job_stubs(driver, city):
 # Never uses driver.back() — always navigates forward to known URLs
 # ─────────────────────────────────────────────────────────────
  
-def fetch_skills_for_stubs(driver, stubs, search_url):
+from concurrent.futures import ThreadPoolExecutor
+
+def fetch_stubs_parallel(stubs):
     """
-    For each stub, navigate directly to its viewjob URL,
-    extract the description text, run skill matching,
-    then return to the search results URL (not driver.back()).
+    Fetches details for all stubs concurrently using background requests.
+    No browser navigation = No waiting for rendering.
     """
-    results = []
- 
-    for i, stub in enumerate(stubs):
-        job_url = stub["Link"]
-        print(f"     [{i+1}/{len(stubs)}] {stub['Job_Title'][:45]}...", end=" ", flush=True)
- 
-        try:
-            driver.get(job_url)
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, JD_PANE_SEL))
-            )
-            time.sleep(random.uniform(0.8, 1.5))
- 
-            pane_el   = driver.find_element(By.CSS_SELECTOR, JD_PANE_SEL)
-            pane_html = pane_el.get_attribute("innerHTML")
-            soup      = BeautifulSoup(pane_html, 'html.parser')
-            jd_text   = soup.get_text(separator=" ", strip=True)
-            skills    = extract_skills(jd_text)
- 
-        except Exception as e:
-            skills = []
- 
-        skills_str = ", ".join(skills) if skills else "Not listed"
-        print(f"→ {len(skills)} skills")
- 
-        job = dict(stub)
-        job.pop("jk_id")
-        job["Skills"] = skills_str
-        results.append(job)
- 
-        # Random delay between job pages — avoids rate limiting
-        time.sleep(random.uniform(2.0, 4.0))
- 
-    return results
+    print(f"  🚀 Starting parallel skill extraction for {len(stubs)} jobs...")
+    
+    # We use 10 workers to fetch 10 jobs at once
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        # This calls the fast 'fetch_indeed_details' function you already have
+        results = list(executor.map(fetch_indeed_details, stubs))
+    
+    # Clean up data for the final list
+    final_jobs = []
+    for job in results:
+        job_copy = dict(job)
+        if "jk_id" in job_copy:
+            job_copy.pop("jk_id")
+        
+        # Ensure Skills is a string for your existing CSV/Logic
+        if isinstance(job_copy.get("Skills"), list):
+            job_copy["Skills"] = ", ".join(job_copy["Skills"])
+            
+        final_jobs.append(job_copy)
+        
+    return final_jobs
  
  
 # ─────────────────────────────────────────────────────────────
@@ -426,6 +415,30 @@ def get_indeed_data(job_title, cities, pages_per_city=3):
  
     return all_jobs
  
+
+def fetch_skills_for_stubs_parallel(stubs):
+    """
+    Fetches details for all stubs concurrently using background requests.
+    """
+    print(f"  🚀 Starting parallel skill extraction for {len(stubs)} jobs...")
+    
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        # This calls the 'fetch_indeed_details' function already in your file
+        results = list(executor.map(fetch_indeed_details, stubs))
+    
+    final_jobs = []
+    for job in results:
+        job_copy = dict(job)
+        if "jk_id" in job_copy:
+            job_copy.pop("jk_id")
+        
+        # Format skills for the scoring model
+        if isinstance(job_copy.get("Skills"), list):
+            job_copy["Skills"] = ", ".join(job_copy["Skills"])
+            
+        final_jobs.append(job_copy)
+        
+    return final_jobs
  
 # ─────────────────────────────────────────────────────────────────
 # FAST WRAPPER  (used by job_scraper_service.py aggregate pipeline)
@@ -502,13 +515,12 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "month") -> l
             print(f"       Stubs collected on page {page + 1}: {len(stubs)}")
 
             if page == 0 and not deep_done:
-                # ── DEEP SCRAPE: first 5 jobs of page 1 ──────────────────
-                deep_stubs   = stubs[:5]
+                deep_stubs = stubs[:10] # Or increase this to 10-15 since it's now fast!
                 shallow_stubs = stubs[5:]
                 deep_done = True
 
                 print(f"       Deep scraping {len(deep_stubs)} jobs...")
-                detailed = fetch_skills_for_stubs(driver, deep_stubs, page_url)
+                detailed = fetch_skills_for_stubs_parallel(deep_stubs)
 
                 for d in detailed:
                     jobs.append({

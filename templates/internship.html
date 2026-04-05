@@ -416,72 +416,70 @@ const DOMAIN_LABELS = {
 };
  
 /* ── Init ── */
+/* ── Updated Init with Persistence ── */
 (function init() {
+    // 1. Load saved filter preferences
     const savedCity   = localStorage.getItem('skillify_city');
     const savedDomain = localStorage.getItem('skillify_domain');
     const savedDate   = localStorage.getItem('skillify_date');
     if (savedCity)   document.getElementById('citySelect').value   = savedCity;
     if (savedDomain) document.getElementById('domainSelect').value = savedDomain;
     if (savedDate)   document.getElementById('dateSelect').value   = savedDate;
-    fetchInternships();
+
+    // 2. Check if we have previously searched jobs in this session
+    const cachedJobs = sessionStorage.getItem('last_search_results');
+    if (cachedJobs) {
+        console.log("Restoring previous search results...");
+        allJobs = JSON.parse(cachedJobs);
+        
+        // Show the results UI components
+        document.getElementById('resultsMeta').style.display = 'flex';
+        document.getElementById('sortTabs').style.display = 'flex';
+        document.getElementById('resultsCount').textContent = 
+            `${allJobs.length} internship${allJobs.length !== 1 ? 's' : ''} restored`;
+        
+        renderJobs();
+    }
+    // Note: fetchInternships() is NOT called here, preventing auto-start on login.
 })();
- 
-/* ── Fetch ── */
+
+/* ── Updated Fetch with Saving ── */
 async function fetchInternships() {
     const city   = document.getElementById('citySelect').value;
     const domain = document.getElementById('domainSelect').value;
     const filter = document.getElementById('dateSelect').value;
     const btn    = document.getElementById('searchBtn');
- 
-    localStorage.setItem('skillify_city',   city);
+
+    localStorage.setItem('skillify_city', city);
     localStorage.setItem('skillify_domain', domain);
-    localStorage.setItem('skillify_date',   filter);
- 
+    localStorage.setItem('skillify_date', filter);
+
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching…';
- 
+
     document.getElementById('resultsMeta').style.display = 'none';
-    document.getElementById('sortTabs').style.display    = 'none';
+    document.getElementById('sortTabs').style.display = 'none';
     showSkeletons();
- 
+
     try {
         const url = `/api/internships?city=${encodeURIComponent(city)}&date_filter=${filter}&domain=${encodeURIComponent(domain)}`;
         const res  = await fetch(url);
         const data = await res.json();
- 
+
         allJobs = data.jobs || [];
- 
-        /* reset sort to Best Match on every new search */
-        document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
-        document.getElementById('tabMatch').classList.add('active');
- 
+
+        // SAVE the results to sessionStorage so they persist across nav clicks
+        sessionStorage.setItem('last_search_results', JSON.stringify(allJobs));
+
         renderJobs();
- 
-        /* Meta bar */
+
         document.getElementById('resultsMeta').style.display = 'flex';
-        document.getElementById('resultsCount').textContent  =
-            `${allJobs.length} internship${allJobs.length !== 1 ? 's' : ''} found`;
+        document.getElementById('resultsCount').textContent = `${allJobs.length} internships and full time jobs found`;
         document.getElementById('cityBadge').textContent = `📍 ${data.city}`;
- 
-        /* Domain badge */
-        const domBadge = document.getElementById('domainBadge');
-        const domText  = document.getElementById('domainBadgeText');
-        if (domain) {
-            domText.textContent     = DOMAIN_LABELS[domain] || domain;
-            domBadge.style.display  = 'inline-flex';
-        } else {
-            domBadge.style.display  = 'none';
-        }
- 
         if (allJobs.length) document.getElementById('sortTabs').style.display = 'flex';
- 
+
     } catch(e) {
-        document.getElementById('jobGrid').innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-exclamation-circle"></i>
-                <h3>Could not load internships</h3>
-                <p>Please try again in a moment.</p>
-            </div>`;
+        document.getElementById('jobGrid').innerHTML = `<div class="empty-state">...error...</div>`;
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-search"></i> Search';

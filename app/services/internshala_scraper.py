@@ -187,10 +187,10 @@ def scrape_internshala_fast(keyword: str, city: str, date_filter: str = "month")
                     duration = items[2].text.strip() if items[2] else "Not specified"
 
                 status_elem = (
-                    card.select_one('.status-info') or
-                    card.select_one('.status-success') or
-                    card.select_one('.status') or
-                    card.select_one('.status-inactive ')
+                    card.select_one('.status-info span') or
+                    card.select_one('.status-success span') or
+                    card.select_one('.status span') or
+                    card.select_one('.status-inactive span')
                 )
 
                 href = title_elem.get('href', '')
