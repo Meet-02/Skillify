@@ -5,14 +5,10 @@ Unified job aggregator:
   • Internshala  — via internshala_scraper.scrape_internshala_fast
   • Indeed IN    — via indeed_scraper.scrape_indeed_fast
   • JSearch API  — httpx async call  (jobs via RapidAPI)
+  • TiDB Database — Pulls background-scraped jobs in Production
 
-75% of results come from scrapers, 25% from JSearch API.
-All three run CONCURRENTLY via asyncio + ThreadPoolExecutor.
-Results are:
-  1. Scored + ranked with run_matching_pipeline
-  2. Saved to CSV  (tmp/jobs_cache/<domain>_<city>_<timestamp>.csv)
-  3. CSV deleted after data is captured
-  4. Returned sorted by match_score descending
+75% of results come from scrapers/DB, 25% from JSearch API.
+All run CONCURRENTLY via asyncio + ThreadPoolExecutor.
 ────────────────────────────────────────────────────────────────────────────────
 """
 
@@ -23,8 +19,10 @@ import csv
 import os
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+import json
+import pymysql
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,11 +34,13 @@ load_dotenv()
 JSEARCH_API_KEY: str = os.getenv("JSEARCH_API_KEY", "")
 
 # ── CSV cache directory ──────────────────────────────────────────────────────
-_ROOT = Path(__file__).resolve().parent.parent.parent
+_SERVICE_DIR = Path(__file__).resolve().parent
+_ROOT = _SERVICE_DIR.parent.parent
 CACHE_DIR = _ROOT / "tmp" / "jobs_cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
+SKILLS_JSON_PATH = _ROOT / "app" / "data" / "skills_master_indeed.json"
 
-# ── Thread-pool shared by Selenium scrapers ──────────────────────────────────
+# ── Thread-pool shared by Selenium scrapers & DB queries ─────────────────────
 _EXECUTOR = ThreadPoolExecutor(max_workers=4)
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -77,13 +77,6 @@ def _score_job_wrapper(args):
     """Helper for multiprocessing to unpack arguments."""
     job, user_profile, resume_text = args
     return _score_job(job, user_profile, resume_text)
-    
-import json
-
-# Use the absolute root path you already defined in the file
-_SERVICE_DIR = Path(__file__).resolve().parent
-_ROOT = _SERVICE_DIR.parent.parent
-SKILLS_JSON_PATH = _ROOT / "app" / "data" / "skills_master_indeed.json"
 
 def load_skills_from_json():
     """Loads names and synonyms from JSON into a flat, sorted list."""
@@ -102,15 +95,12 @@ def load_skills_from_json():
                 for syn in item["synonyms"]:
                     flat_skills.add(syn.lower())
         
-        # Sort by length descending so 'React Native' matches before 'React'
         return sorted(list(flat_skills), key=len, reverse=True)
     except Exception as e:
         print(f"⚠️ Error loading skills JSON: {e}")
         return []
 
-# Now KNOWN_SKILLS is always synced with your JSON
 KNOWN_SKILLS = load_skills_from_json() 
-
 
 def _extract_skills_fast(text: str) -> list[str]:
     """Resilient keyword skill extraction using Regex Lookarounds."""
@@ -122,23 +112,82 @@ def _extract_skills_fast(text: str) -> list[str]:
     
     for skill in KNOWN_SKILLS:
         skill_clean = skill.lower()
-        # The 'Secret Sauce': Lookarounds catch skills even without spaces around them
         pattern = r'(?<![a-zA-Z0-9])' + re.escape(skill_clean) + r'(?![a-zA-Z0-9])'
         
         if re.search(pattern, tl):
-            # Normalization logic
             if len(skill_clean) <= 3:
                 found.add(skill_clean.upper())
             else:
                 special_cases = {"mern", "mean", "rest", "node.js", "mongodb"}
                 if skill_clean in special_cases:
-                    # Professional formatting
                     mapping = {"node.js": "Node.js", "mongodb": "MongoDB"}
                     found.add(mapping.get(skill_clean, skill_clean.upper()))
                 else:
                     found.add(skill_clean.title())
                 
     return sorted(list(found))
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# SOURCE: TIDB DATABASE (Replaces Selenium in Production)
+# ════════════════════════════════════════════════════════════════════════════
+
+def _fetch_jobs_from_db(keyword: str, city: str) -> list[dict]:
+    """Fetch jobs previously scraped by GitHub Actions from TiDB."""
+    try:
+        connection = pymysql.connect(
+            host=os.getenv('TIDB_HOST'),
+            user=os.getenv('TIDB_USER'),
+            password=os.getenv('TIDB_PASS'),
+            database=os.getenv('TIDB_NAME'),
+            port=4000,
+            ssl={'ssl_mode': 'PREFERRED'},
+            cursorclass=pymysql.cursors.DictCursor
+        )
+        
+        with connection.cursor() as cursor:
+            # We search the jobs table for keywords in the title or skills
+            sql = """
+            SELECT source, title, company as employer, location, link as apply_link, skills
+            FROM jobs 
+            WHERE (title LIKE %s OR skills LIKE %s)
+              AND location LIKE %s
+            LIMIT 150
+            """
+            search_kw = f"%{keyword}%"
+            search_city = f"%{city}%"
+            cursor.execute(sql, (search_kw, search_kw, search_city))
+            rows = cursor.fetchall()
+            
+            db_jobs = []
+            for row in rows:
+                # Convert comma-separated string back to a Python list
+                skills_str = row.get('skills', '')
+                skills_list = [s.strip() for s in skills_str.split(',') if s.strip()] if skills_str else []
+                
+                db_jobs.append({
+                    "source": row.get('source', 'Database'),
+                    "title": row.get('title', ''),
+                    "employer": row.get('employer', ''),
+                    "location": row.get('location', ''),
+                    "salary": "Not disclosed",
+                    "duration": "N/A",
+                    "status": "Active",
+                    "apply_link": row.get('apply_link', ''),
+                    "description": "",
+                    "skills": skills_list,
+                    "employment_type": "Full Time",
+                    "posted_at": datetime.now(timezone.utc).isoformat(),
+                    "employer_logo": "",
+                })
+        
+        connection.close()
+        print(f"  🗄️ TiDB Database → Found {len(db_jobs)} saved jobs.")
+        return db_jobs
+    except Exception as e:
+        print(f"  ⚠️ Database fetch error: {e}")
+        return []
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # SCORING HELPER
@@ -149,7 +198,6 @@ def _score_job(
     user_profile: dict,
     resume_text: str,
 ) -> dict[str, Any]:
-    """Score a single job against the user profile."""
     if not user_profile or not any(user_profile.values()):
         job["match_score"] = 0.0
         job["gap_severity"] = "N/A"
@@ -160,7 +208,6 @@ def _score_job(
         from app.services.match_service import run_matching_pipeline
         text_blob = f"{job.get('title','')} {job.get('description','')[:1500]}"
 
-        # Build job_profile from skills list or from text extraction
         job_profile: dict[str, list] = {"technical": [], "tools": [], "soft": []}
         skills = job.get("skills", [])
         if skills:
@@ -187,16 +234,14 @@ def _score_job(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SOURCE 3 — JSEARCH API  (async httpx, non-blocking)
+# SOURCE: JSEARCH API
 # ════════════════════════════════════════════════════════════════════════════
 
 async def _scrape_jsearch(keyword: str, city: str, date_filter: str = "month") -> list[dict]:
-    """Calls JSearch RapidAPI — pure async, no Selenium."""
     if not JSEARCH_API_KEY:
         print("  ⚠️  JSEARCH_API_KEY not set — skipping JSearch")
         return []
 
-    # Map date_filter to JSearch's date_posted param
     jsearch_date_map = {
         "24h": "today", "last 24h": "today", "today": "today",
         "3days": "3days", "last 3 days": "3days",
@@ -228,53 +273,35 @@ async def _scrape_jsearch(keyword: str, city: str, date_filter: str = "month") -
         ]
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # If RapidAPI rate-limits this request, skip JSearch immediately.
-    # This prevents API retries/logging overhead from slowing overall aggregation.
-    if any(
-        not isinstance(resp, Exception) and getattr(resp, "status_code", None) == 429
-        for resp in responses
-    ):
+    if any(not isinstance(resp, Exception) and getattr(resp, "status_code", None) == 429 for resp in responses):
         print("  ⚠️  JSearch returned HTTP 429 (rate-limited) — skipping JSearch for this run")
         return []
 
     for i, resp in enumerate(responses):
         query_used = queries[i] if i < len(queries) else "?"
-
-        if isinstance(resp, Exception):
-            print(f"  ❌ JSearch error for query={query_used!r}: {resp}")
-            continue
+        if isinstance(resp, Exception) or resp.status_code != 200: continue
 
         data_list = resp.json().get("data", [])
-        print(f"  📡 JSearch query={query_used!r} | status={resp.status_code} "
-              f"| date_posted={date_posted!r} | results={len(data_list)}")
-
-        if resp.status_code != 200:
-            print(f"  ⚠️  JSearch non-200! URL={resp.url}")
-            print(f"       Headers sent: host={_headers['x-rapidapi-host']} key=...{JSEARCH_API_KEY[-6:]}")
-            print(f"       Response body: {resp.text[:300]}")
-            continue
-
-        if len(data_list) == 0:
-            print(f"  ⚠️  JSearch returned 0 jobs for this query!")
-            print(f"       Full URL: {resp.url}")
-            print(f"       API key (last 6): ...{JSEARCH_API_KEY[-6:]}")
-
+        
         for job in data_list:
             link = job.get("job_apply_link", "")
-            if not link or link in seen_links:
-                continue
+            if not link or link in seen_links: continue
             seen_links.add(link)
 
             qualifs = job.get("job_highlights", {}).get("Qualifications") or []
             desc    = job.get("job_description", "") or ""
             text_blob = f"{job.get('job_title','')} {' '.join(str(q) for q in qualifs[:5])} {desc[:1500]}"
 
+            lo = job.get("job_min_salary")
+            hi = job.get("job_max_salary")
+            salary_str = f"₹{int(lo):,} – ₹{int(hi):,}" if (lo and hi) else (f"₹{int(lo):,}+" if lo else "Not disclosed")
+
             jobs.append({
                 "source":        "JSearch",
                 "title":         job.get("job_title", ""),
                 "employer":      job.get("employer_name", ""),
                 "location":      job.get("job_city") or city,
-                "salary":        _format_jsearch_salary(job),
+                "salary":        salary_str,
                 "duration":      "N/A",
                 "status":        "Active",
                 "apply_link":    link,
@@ -285,21 +312,8 @@ async def _scrape_jsearch(keyword: str, city: str, date_filter: str = "month") -
                 "employer_logo": job.get("employer_logo", ""),
             })
 
-            if len(jobs) >= 20:
-                break
-
     print(f"  ✅ JSearch → {len(jobs)} jobs total")
     return jobs
-
-
-def _format_jsearch_salary(job: dict) -> str:
-    lo = job.get("job_min_salary")
-    hi = job.get("job_max_salary")
-    if lo and hi:
-        return f"₹{int(lo):,} – ₹{int(hi):,}"
-    if lo:
-        return f"₹{int(lo):,}+"
-    return "Not disclosed"
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -311,7 +325,6 @@ _CSV_FIELDS = [
     "employment_type","skills","match_score","gap_severity","apply_link","posted_at",
 ]
 
-
 def _save_to_csv(jobs: list[dict], domain: str, city: str) -> Path:
     ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = re.sub(r"[^a-z0-9_]", "_", f"{domain or 'all'}_{city}".lower())
@@ -322,10 +335,8 @@ def _save_to_csv(jobs: list[dict], domain: str, city: str) -> Path:
         writer.writeheader()
         for job in jobs:
             row = dict(job)
-            if isinstance(row.get("skills"), list):
-                row["skills"] = ", ".join(row["skills"])
-            if isinstance(row.get("missing_skills"), dict):
-                row.pop("missing_skills", None)
+            if isinstance(row.get("skills"), list): row["skills"] = ", ".join(row["skills"])
+            if isinstance(row.get("missing_skills"), dict): row.pop("missing_skills", None)
             writer.writerow(row)
 
     print(f"  💾 Saved {len(jobs)} jobs → {path.name}")
@@ -344,52 +355,22 @@ async def aggregate_jobs(
     sources: list[str] | None = None,
     date_filter: str = "month",
 ) -> dict[str, Any]:
-    """
-    Run all scrapers in parallel, score, deduplicate, sort, cache to CSV.
-
-    75% of jobs come from scrapers (Internshala + Indeed).
-    25% come from JSearch API.
-    If scrapers fail, 100% falls back to JSearch.
-
-    Parameters
-    ----------
-    domain       : domain key e.g. "android", "backend" (see DOMAIN_KEYWORDS)
-    city         : city name e.g. "Mumbai"
-    user_profile : {"technical": [...], "tools": [...], "soft": [...]}
-    resume_text  : raw resume text for semantic scoring
-    sources      : which sources to use; default ["internshala","indeed","jsearch"]
-    date_filter  : "3days", "week", "month" etc.
-
-    Returns
-    -------
-    {
-        "jobs":       [...],   # sorted by match_score desc
-        "total":      int,
-        "csv_path":   str,
-        "sources_hit": {...},  # count per source
-    }
-    """
+    
     if sources is None:
         sources = ["internshala", "indeed", "jsearch"]
 
-    # Render automatically sets an environment variable called 'RENDER'
+    # --- PRODUCTION GUARD ---
     IS_RENDER = os.getenv("RENDER") == "true"
-    
     if IS_RENDER:
         print("⚠️ [PRODUCTION MODE] Disabling Selenium scrapers to prevent RAM crash.")
-        # Force the API to only use the lightweight JSearch API and ignore Selenium
-        sources = ["jsearch"]
+        # Replaces Selenium with TiDB database pull + live JSearch
+        sources = ["database", "jsearch"]
 
-    # Fix case sensitivity: always normalise before lookup
-    domain_clean = domain.lower().strip()
-
-    # Fix case sensitivity: always normalise before lookup
     domain_clean = domain.lower().strip()
     keyword = DOMAIN_KEYWORDS.get(domain_clean)
     if keyword is None:
-        # Fallback: use a Title Case version of the raw domain
         keyword = domain.strip().title() if domain.strip() else ""
-    keyword = keyword or domain_clean   # ultimate fallback
+    keyword = keyword or domain_clean
 
     print(f"\n🚀 Aggregating jobs | domain={domain!r} keyword={keyword!r} city={city!r}")
     print(f"   Sources: {sources}  date_filter={date_filter!r}")
@@ -400,6 +381,9 @@ async def aggregate_jobs(
 
     # ── PREPARE TASKS ──────────────────────────────────────────────────────
     tasks = []
+
+    if "database" in sources:
+        tasks.append(loop.run_in_executor(_EXECUTOR, _fetch_jobs_from_db, keyword, city))
 
     if "internshala" in sources:
         from app.services.internshala_scraper import scrape_internshala_fast
@@ -414,8 +398,6 @@ async def aggregate_jobs(
 
     # ── EXECUTE ALL CONCURRENTLY ──────────────────────────────────────────
     print(f"  ▶️  Launching all sources ({len(tasks)}) concurrently...")
-    
-    # This is where the magic happens!
     raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
     # ── PROCESS RESULTS ───────────────────────────────────────────────────
@@ -423,8 +405,14 @@ async def aggregate_jobs(
     jsearch_jobs: list[dict] = []
     sources_hit: dict[str, int] = {}
 
-    # Map results back to their sources based on order of 'tasks' list
     task_idx = 0
+    if "database" in sources:
+        res = raw_results[task_idx]
+        if not isinstance(res, Exception):
+            scraper_jobs.extend(res) # Treat DB jobs as "scraper jobs" for logic
+            sources_hit["database"] = len(res)
+        task_idx += 1
+
     if "internshala" in sources:
         res = raw_results[task_idx]
         if not isinstance(res, Exception):
@@ -451,32 +439,20 @@ async def aggregate_jobs(
 
     # ── Log raw counts per source before dedup ────────────────────────────
     print(f"\n  📊 Raw counts before dedup:")
-    print(f"       Internshala : {sources_hit.get('internshala', 0)} jobs")
-    print(f"       Indeed      : {sources_hit.get('indeed', 0)} jobs")
-    print(f"       JSearch     : {sources_hit.get('jsearch', 0)} jobs")
-    print(f"       Scrapers total: {len(scraper_jobs)} | JSearch total: {len(jsearch_jobs)}")
+    for source_name, count in sources_hit.items():
+        print(f"       {source_name.title()} : {count} jobs")
 
     # ── Apply split logic ─────────────────────────────────────────────────
-    # If JSearch returned jobs: apply 75% scrapers / 25% JSearch cap.
-    # If JSearch is empty (quota/429): disable the cap entirely and use
-    # 100% of scraper results so volume isn't artificially limited.
     if jsearch_jobs:
         total_target = len(scraper_jobs) + len(jsearch_jobs)
         if scraper_jobs:
             scraper_cap = max(1, int(total_target * 0.75))
             jsearch_cap = max(1, total_target - scraper_cap)
             combined = scraper_jobs[:scraper_cap] + jsearch_jobs[:jsearch_cap]
-            print(f"  📦 75/25 split applied: scrapers capped={scraper_cap} jsearch capped={jsearch_cap}")
         else:
-            # Scrapers empty — fall back to 100% JSearch
             combined = jsearch_jobs
-            print(f"  ⚠️  No scraper jobs — falling back to 100% JSearch ({len(jsearch_jobs)} jobs)")
     else:
-        # JSearch empty (quota/429) — use 100% of scraper results, no cap
         combined = scraper_jobs
-        print(f"  ⚠️  JSearch returned 0 jobs (quota/429?) — using 100% scraper results ({len(scraper_jobs)} jobs, no cap)")
-
-    print(f"\n  📦 Total raw (before dedup): scrapers={len(scraper_jobs)} jsearch={len(jsearch_jobs)} combined={len(combined)}")
 
     # ── Deduplication by apply_link ────────────────────────────────────────
     seen_links: set[str] = set()
@@ -489,9 +465,9 @@ async def aggregate_jobs(
         elif not link:
             unique_jobs.append(job)
 
-    print(f"  🔗 After dedup: {len(unique_jobs)} jobs (removed {len(combined) - len(unique_jobs)} duplicates)")
+    print(f"  🔗 After dedup: {len(unique_jobs)} jobs")
 
-# ── Score all jobs using MULTIPROCESSING (CPU-bound optimization) ──
+    # ── Score all jobs using MULTIPROCESSING (CPU-bound optimization) ──
     _up = user_profile or {}
     _rt = resume_text or ""
 
@@ -499,14 +475,15 @@ async def aggregate_jobs(
         print(f"  🎯 Scoring {len(unique_jobs)} jobs using parallel CPU cores...")
         _score_start = time.time()
         
-        from concurrent.futures import ProcessPoolExecutor
-        # Use all available CPU cores to score jobs in parallel
-        with ProcessPoolExecutor(max_workers=os.cpu_count()) as process_executor:
+        # NOTE: ProcessPoolExecutor requires __main__ on Windows, safe on Render (Linux)
+        with ProcessPoolExecutor(max_workers=os.cpu_count() or 1) as process_executor:
             scored_jobs = list(process_executor.map(
                 _score_job_wrapper, 
                 [(job, _up, _rt) for job in unique_jobs]
             ))
         print(f"  🎯 Scoring done in {time.time() - _score_start:.1f}s")
+    else:
+        scored_jobs = unique_jobs
 
     # ── Sort by match_score descending ────────────────────────────────────
     scored_jobs.sort(key=lambda j: j.get("match_score", 0), reverse=True)
@@ -516,26 +493,8 @@ async def aggregate_jobs(
         _EXECUTOR, _save_to_csv, scored_jobs, domain, city
     )
 
-    print(f"  🏆 Top job: {scored_jobs[0]['title'] if scored_jobs else 'N/A'}")
-
-    result = {
-        "jobs":        scored_jobs,
-        "total":       len(scored_jobs),
-        "csv_path":    str(csv_path),
-        "sources_hit": sources_hit,
-    }
-
-    # ── Cleanup: delete temporary CSV immediately ─────────────────────────
-    try:
-        os.remove(csv_path)
-        print(f"  🗑️  Deleted temp CSV: {csv_path.name}")
-    except OSError as exc:
-        print(f"  ⚠️  Could not delete CSV: {exc}")
-
     # ── Final Alignment for Frontend ──
-# ── Final Alignment for Frontend ──
     for job in scored_jobs:
-        # 1. Clean up skills: Ensure it is a list, never a string or "Not listed"
         skills_raw = job.get("skills", [])
         if isinstance(skills_raw, str):
             parts = [s.strip() for s in skills_raw.split(",") if s.strip()]
@@ -546,14 +505,8 @@ async def aggregate_jobs(
             skills_list = []
         
         job["skills"] = skills_list
-
-        # 2. Map to qualifications for frontend UI (tags)
-        # This ensures the 'Node, React, Express' tags actually appear on the card
         job["qualifications"] = skills_list[:6] 
-            
-        # 3. Ensure match_score exists for the SVG ring
-        if "match_score" not in job:
-            job["match_score"] = 0
+        if "match_score" not in job: job["match_score"] = 0
 
     return {
         "jobs":        scored_jobs,
@@ -562,5 +515,3 @@ async def aggregate_jobs(
         "sources_hit": sources_hit,
         "city":        city
     }
-
-    # return result
