@@ -17,9 +17,7 @@ engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     connect_args={
-        "ssl": {
-            "ssl_mode": "VERIFY_IDENTITY"
-        }
+        "ssl": {"ssl_mode": "PREFERRED"}
     }
 )
 

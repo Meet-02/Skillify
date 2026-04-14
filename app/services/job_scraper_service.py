@@ -372,6 +372,17 @@ async def aggregate_jobs(
     if sources is None:
         sources = ["internshala", "indeed", "jsearch"]
 
+    # Render automatically sets an environment variable called 'RENDER'
+    IS_RENDER = os.getenv("RENDER") == "true"
+    
+    if IS_RENDER:
+        print("⚠️ [PRODUCTION MODE] Disabling Selenium scrapers to prevent RAM crash.")
+        # Force the API to only use the lightweight JSearch API and ignore Selenium
+        sources = ["jsearch"]
+
+    # Fix case sensitivity: always normalise before lookup
+    domain_clean = domain.lower().strip()
+
     # Fix case sensitivity: always normalise before lookup
     domain_clean = domain.lower().strip()
     keyword = DOMAIN_KEYWORDS.get(domain_clean)

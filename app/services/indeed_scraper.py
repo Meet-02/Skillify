@@ -145,30 +145,6 @@ def save_indeed_session(driver):
     print(f"✅ Session saved. Set FIRST_RUN = False and run again.\n")
  
  
-def get_stealth_driver():
-    options = uc.ChromeOptions()
-    if not os.path.exists(USER_DATA_DIR):
-        os.makedirs(USER_DATA_DIR)
-    
-    options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
-    
-    # 1. REMOVED Headless so you can see if a Captcha appears
-    # 2. Keep these for stability
-    options.add_argument("--no-first-run")
-    options.add_argument("--no-service-autorun")
-    options.add_argument("--password-store=basic")
-    
-    # 3. Use a realistic User-Agent to help bypass blocks
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-    prefs = {
-        "profile.managed_default_content_settings.images": 2,
-        "profile.managed_default_content_settings.stylesheets": 2,
-        "profile.managed_default_content_settings.fonts": 2
-    }
-    options.add_experimental_option("prefs", prefs)
-    # 4. use_subprocess=True is good for FastAPI threading
-    return uc.Chrome(options=options, version_main=146, use_subprocess=True)
-
 # def get_stealth_driver():
 #     options = uc.ChromeOptions()
 #     if not os.path.exists(USER_DATA_DIR):
@@ -176,22 +152,59 @@ def get_stealth_driver():
     
 #     options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
     
-#     # --- ADD HEADLESS MODE HERE ---
-#     options.add_argument("--headless=new")  # Use "--headless=new" if using latest Chrome
-#     options.add_argument("--no-sandbox")            # <--- ADD THIS
-#     options.add_argument("--disable-dev-shm-usage")  # <--- ADD THIS
-#     options.add_argument("--disable-gpu")
-#     options.add_argument("--window-size=1920,1080")
-#     # ------------------------------
-
-#     # Fix for threading: prevent multiple instances from crashing
+#     # 1. REMOVED Headless so you can see if a Captcha appears
+#     # 2. Keep these for stability
 #     options.add_argument("--no-first-run")
 #     options.add_argument("--no-service-autorun")
 #     options.add_argument("--password-store=basic")
-#     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
     
-#     return uc.Chrome(options=options,version_main=146,use_subprocess=True)
-#     return driver
+#     # 3. Use a realistic User-Agent to help bypass blocks
+#     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+#     prefs = {
+#         "profile.managed_default_content_settings.images": 2,
+#         "profile.managed_default_content_settings.stylesheets": 2,
+#         "profile.managed_default_content_settings.fonts": 2
+#     }
+#     options.add_experimental_option("prefs", prefs)
+#     # 4. use_subprocess=True is good for FastAPI threading
+#     return uc.Chrome(options=options, version_main=146, use_subprocess=True)
+
+def get_stealth_driver(headless=True):
+    options = uc.ChromeOptions()
+    if not os.path.exists(USER_DATA_DIR):
+        os.makedirs(USER_DATA_DIR)
+    
+    options.add_argument(f"--user-data-dir={USER_DATA_DIR}")
+    
+    # 1. CLOUD STABILITY (Required for GitHub Actions / Railway / Linux)
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    
+    # 2. HEADLESS TOGGLE
+    if headless:
+        options.add_argument("--headless=new")
+    
+    # 3. PROCESS STABILITY
+    options.add_argument("--no-first-run")
+    options.add_argument("--no-service-autorun")
+    options.add_argument("--password-store=basic")
+    
+    # 4. STEALTH: Match User-Agent to your version_main (146)
+    # (Using Chrome/122 with version_main=146 is a red flag to bot detectors)
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36")
+    
+    # 5. PERFORMANCE: Disable Images, CSS, and Fonts
+    # (Saves massive amounts of RAM and speeds up scraping by 3x)
+    prefs = {
+        "profile.managed_default_content_settings.images": 2,
+        "profile.managed_default_content_settings.stylesheets": 2,
+        "profile.managed_default_content_settings.fonts": 2
+    }
+    options.add_experimental_option("prefs", prefs)
+    
+    return uc.Chrome(options=options, version_main=146, use_subprocess=True)
 
 def load_indeed_session(driver):
     if not os.path.exists(COOKIES_FILE):

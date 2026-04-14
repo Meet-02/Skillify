@@ -1,0 +1,29 @@
+name: Background Scrapers
+on:
+  schedule:
+    - cron: '0 */12 * * *' # Runs every 12 hours
+  workflow_dispatch: # Allows you to trigger it manually
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+      - name: Install Dependencies
+        # Re-add selenium here just for the GitHub Action
+        run: pip install -r requirements.txt selenium undetected-chromedriver pymysql beautifulsoup4 pandas
+      - name: Run Scrapers
+        env:
+          TIDB_HOST: ${{ secrets.TIDB_HOST }}
+          TIDB_USER: ${{ secrets.TIDB_USER }}
+          TIDB_PASS: ${{ secrets.TIDB_PASS }}
+          TIDB_NAME: ${{ secrets.TIDB_NAME }}
+        run: python run_background_scrapers.py
