@@ -1,18 +1,11 @@
 # Use a Python base image
 FROM python:3.11-slim
 
-# Install system dependencies and Google Chrome for Selenium
-# Install system dependencies and Google Chrome for Selenium
-# Ensure this block is in your Dockerfile to install the real browser
-RUN apt-get update && apt-get install -y google-chrome-stable
+# Install basic system dependencies (Removed Chrome to save 400MB+ RAM!)
+RUN apt-get update && apt-get install -y \
     wget \
-    gnupg \
-    unzip \
     curl \
-    && mkdir -p /usr/share/keyrings \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update && apt-get install -y google-chrome-stable \
+    build-essential \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
@@ -28,8 +21,6 @@ RUN pip install https://github.com/explosion/spacy-models/releases/download/en_c
 # Copy the rest of your application code
 COPY . .
 
-# Expose the port FastAPI runs on
-EXPOSE 8000
-
-# Start the application using uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the application using gunicorn with exactly 1 worker to prevent OOM crashes
+# We use $PORT so Render can dynamically assign the port it needs
+CMD ["sh", "-c", "gunicorn -w 1 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:${PORT:-10000}"]
