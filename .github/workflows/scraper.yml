@@ -9,21 +9,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Install Chrome
+          
+      - name: Install Chrome & Xvfb (Fake Screen)
         run: |
           sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
+          sudo apt-get install -y google-chrome-stable xvfb
+          
       - name: Install Dependencies
-        # Re-add selenium here just for the GitHub Action
         run: pip install -r requirements.txt selenium undetected-chromedriver pymysql beautifulsoup4 pandas
-      - name: Run Scrapers
+        
+      - name: Run Scrapers inside Fake Screen
         env:
           TIDB_HOST: ${{ secrets.TIDB_HOST }}
           TIDB_USER: ${{ secrets.TIDB_USER }}
           TIDB_PASS: ${{ secrets.TIDB_PASS }}
           TIDB_NAME: ${{ secrets.TIDB_NAME }}
-        run: python run_background_scrapers.py
+        # Notice the 'xvfb-run' command here!
+        run: xvfb-run --auto-servernum python run_background_scraper.py

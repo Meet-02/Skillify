@@ -197,14 +197,14 @@ def get_stealth_driver(headless=True):
     
     # 5. PERFORMANCE: Disable Images, CSS, and Fonts
     # (Saves massive amounts of RAM and speeds up scraping by 3x)
-    prefs = {
-        "profile.managed_default_content_settings.images": 2,
-        "profile.managed_default_content_settings.stylesheets": 2,
-        "profile.managed_default_content_settings.fonts": 2
-    }
-    options.add_experimental_option("prefs", prefs)
+    # prefs = {
+    #     "profile.managed_default_content_settings.images": 2,
+    #     "profile.managed_default_content_settings.stylesheets": 2,
+    #     "profile.managed_default_content_settings.fonts": 2
+    # }
+    # options.add_experimental_option("prefs", prefs)
     
-    return uc.Chrome(options=options, version_main=146, use_subprocess=True)
+    return uc.Chrome(options=options, use_subprocess=True)
 
 def load_indeed_session(driver):
     if not os.path.exists(COOKIES_FILE):
@@ -354,7 +354,7 @@ def fetch_stubs_parallel(stubs):
 # ─────────────────────────────────────────────────────────────
  
 def get_indeed_data(job_title, cities, pages_per_city=3):
-    driver   = get_stealth_driver()
+    driver   = get_stealth_driver(headless=False)
     all_jobs = []
  
     try:
@@ -486,7 +486,7 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "month") -> l
     else:
         max_pages = 5
 
-    driver = get_stealth_driver()
+    driver = get_stealth_driver(headless=False)
     jobs: list[dict] = []
     deep_done = False 
 
@@ -499,9 +499,24 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "month") -> l
         time.sleep(8) # Wait for the slow two-pane layout
         close_popups(driver)
 
-        if not wait_for_cards(driver):
+        # --- DEBUGGING BLOCK ---
+        print(f"👉 [DEBUG] Current URL after loading: {driver.current_url}")
+        
+        if not wait_for_cards(driver, timeout=60):
             print("  ⚠️  Indeed: no cards found on page 1")
+            
+            # 1. Take a screenshot so we can SEE the error
+            print("  📸 [DEBUG] Saving screenshot as 'indeed_error.png'...")
+            driver.save_screenshot("indeed_error.png")
+            
+            # 2. Save the HTML so we can check if selectors changed
+            print("  📄 [DEBUG] Saving page source as 'indeed_error.html'...")
+            with open("indeed_error.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+                
+            print("  🔍 [DEBUG] Open 'indeed_error.png' in your project folder to see what blocked the scraper!")
             return []
+        # -----------------------
 
         for page in range(max_pages):
             page_url = base_url if page == 0 else f"{base_url}&start={page * 10}"
