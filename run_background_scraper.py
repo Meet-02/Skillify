@@ -49,16 +49,18 @@ if __name__ == "__main__":
     
     # Scrape for standard tech roles
     keywords = ["Software Engineer", "Data Analyst", "Frontend Developer"]
+    cities = ["Mumbai", "Bangalore"]
     
-    for kw in keywords:
-        print(f"Scraping Indeed for {kw}...")
-        indeed_jobs = scrape_indeed_fast(kw, "India", "3days")
-        if indeed_jobs:
-            save_jobs_to_tidb(indeed_jobs, "Indeed")
-            
-        print(f"Scraping Internshala for {kw}...")
-        internshala_jobs = scrape_internshala_fast(kw, "India", "3days")
-        if internshala_jobs:
-            save_jobs_to_tidb(internshala_jobs, "Internshala")
+    for city in cities:
+        for kw in keywords:
+            print(f"Scraping Indeed for {kw}...")
+            indeed_jobs = scrape_indeed_fast(kw, city, "3days")
+            if indeed_jobs:
+                save_jobs_to_tidb(indeed_jobs, "Indeed")
+                
+            print(f"Scraping Internshala for {kw}...")
+            internshala_jobs = scrape_internshala_fast(kw, city, "3days")
+            if internshala_jobs:
+                save_jobs_to_tidb(internshala_jobs, "Internshala")
             
     print("🎉 Background scraping complete!")

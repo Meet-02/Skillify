@@ -1,7 +1,6 @@
 # --- Security & Environment ---
 .env
-*.pkl
-app/services/indeed_cookies.pkl
+
 
 # --- Scraping & Browser Data ---
 # Ignores the entire profile folder and everything inside it
