@@ -8,10 +8,10 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           
@@ -21,7 +21,7 @@ jobs:
           sudo apt-get install -y google-chrome-stable xvfb
           
       - name: Install Dependencies
-        run: pip install -r requirements.txt selenium undetected-chromedriver pymysql beautifulsoup4 pandas
+        run: pip install --ignore-installed PyYAML -r requirements.txt selenium undetected-chromedriver webdriver-manager pymysql beautifulsoup4 pandas
         
       - name: Run Scrapers inside Fake Screen
         env:
@@ -29,5 +29,6 @@ jobs:
           TIDB_USER: ${{ secrets.TIDB_USER }}
           TIDB_PASS: ${{ secrets.TIDB_PASS }}
           TIDB_NAME: ${{ secrets.TIDB_NAME }}
+          TIDB_PORT: 4000
         # Notice the 'xvfb-run' command here!
         run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python run_background_scraper.py
