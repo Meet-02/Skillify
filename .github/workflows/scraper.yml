@@ -30,4 +30,4 @@ jobs:
           TIDB_PASS: ${{ secrets.TIDB_PASS }}
           TIDB_NAME: ${{ secrets.TIDB_NAME }}
         # Notice the 'xvfb-run' command here!
-        run: xvfb-run --auto-servernum python run_background_scraper.py
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python run_background_scraper.py

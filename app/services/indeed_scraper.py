@@ -178,8 +178,10 @@ def get_stealth_driver(headless=True):
     
     # 1. CLOUD STABILITY (Required for GitHub Actions / Railway / Linux)
     options.add_argument("--no-sandbox")
+    options.add_argument("--disable-setuid-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
+    options.add_argument("--disable-software-rasterizer")
     options.add_argument("--window-size=1920,1080")
     
     # 2. HEADLESS TOGGLE
