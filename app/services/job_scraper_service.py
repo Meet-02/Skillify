@@ -154,8 +154,18 @@ def _fetch_jobs_from_db(keyword: str, city: str) -> list[dict]:
               AND location LIKE %s
             LIMIT 150
             """
-            search_kw = f"%{keyword}%"
+            core_word = keyword.split()[0]
+            
+            # Catch variations like "Front End" or "Full Stack"
+            if core_word.lower() in ["frontend", "front-end"]:
+                core_word = "Front"  
+            elif core_word.lower() in ["fullstack", "full-stack"]:
+                core_word = "Full"
+                
+            search_kw = f"%{core_word}%"
             search_city = f"%{city}%"
+            # ------------------------------
+            
             cursor.execute(sql, (search_kw, search_kw, search_city))
             rows = cursor.fetchall()
             
