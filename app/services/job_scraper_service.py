@@ -146,32 +146,42 @@ def _fetch_jobs_from_db(keyword: str, city: str) -> list[dict]:
         )
         
         with connection.cursor() as cursor:
-            # We search the jobs table for keywords in the title or skills
-            sql = """
+            # 1. SMART KEYWORDS (Catch variations like Web Dev for Frontend)
+            kw_lower = keyword.lower()
+            if "front" in kw_lower or "web" in kw_lower:
+                terms = ["%front%", "%web%", "%react%", "%ui%", "%javascript%"]
+            elif "back" in kw_lower:
+                terms = ["%back%", "%node%", "%java%", "%api%", "%python%"]
+            elif "data" in kw_lower or "machine" in kw_lower:
+                terms = ["%data%", "%machine%", "%ai%", "%ml%", "%analytics%"]
+            elif "software" in kw_lower:
+                terms = ["%software%", "%developer%", "%engineer%", "%sde%"]
+            else:
+                core_word = keyword.split()[0]
+                terms = [f"%{core_word}%"]
+            
+            # Build dynamic OR clauses so the DB searches all variations
+            title_clauses = " OR ".join(["title LIKE %s"] * len(terms))
+            skills_clauses = " OR ".join(["skills LIKE %s"] * len(terms))
+            
+            # 2. SMART LOCATION (Always include Remote/WFH jobs for the user!)
+            sql = f"""
             SELECT source, title, company as employer, location, link as apply_link, skills
             FROM jobs 
-            WHERE (title LIKE %s OR skills LIKE %s)
-              AND location LIKE %s
+            WHERE ({title_clauses} OR {skills_clauses})
+              AND (location LIKE %s OR location LIKE '%%Work From Home%%' OR location LIKE '%%Remote%%')
+            ORDER BY id DESC
             LIMIT 150
             """
-            core_word = keyword.split()[0]
             
-            # Catch variations like "Front End" or "Full Stack"
-            if core_word.lower() in ["frontend", "front-end"]:
-                core_word = "Front"  
-            elif core_word.lower() in ["fullstack", "full-stack"]:
-                core_word = "Full"
-                
-            search_kw = f"%{core_word}%"
-            search_city = f"%{city}%"
-            # ------------------------------
+            # Combine our terms with the user's city
+            params = terms + terms + [f"%{city}%"]
             
-            cursor.execute(sql, (search_kw, search_kw, search_city))
+            cursor.execute(sql, tuple(params))
             rows = cursor.fetchall()
             
             db_jobs = []
             for row in rows:
-                # Convert comma-separated string back to a Python list
                 skills_str = row.get('skills', '')
                 skills_list = [s.strip() for s in skills_str.split(',') if s.strip()] if skills_str else []
                 
