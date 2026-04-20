@@ -641,40 +641,43 @@ import urllib.parse
 from datetime import datetime, timezone
 
 def scrape_indeed_fast(keyword: str, city: str, date_filter: str) -> list[dict]:
-    print(f"Scraping Indeed via API for {keyword} in {city}...")
+    print(f"Scraping Indeed via ZenRows for {keyword} in {city}...")
     
     # 1. Build the target Indeed URL
     query = urllib.parse.quote_plus(keyword)
     location = urllib.parse.quote_plus(city)
     target_url = f"https://in.indeed.com/jobs?q={query}&l={location}&fromage=3"
     
-    # 2. Get your API Key from the environment
+    # 2. Get your ZenRows API Key from the environment
+    # (We are keeping the variable name SCRAPER_API_KEY so you don't have to change your GitHub Settings)
     api_key = os.getenv('SCRAPER_API_KEY')
     if not api_key:
         print("⚠️ No SCRAPER_API_KEY found! Skipping Indeed.")
         return []
 
-    # 3. Send the request through ScraperAPI
-    payload = {
-        'api_key': api_key, 
-        'url': target_url,
-        'render': 'true' # Tells the API to execute JavaScript before returning HTML
+    # 3. ZenRows API Setup
+    zenrows_endpoint = "https://api.zenrows.com/v1/"
+    params = {
+        "apikey": api_key,
+        "url": target_url,
+        "js_render": "true",      # Tells ZenRows to load React/JavaScript
+        "premium_proxy": "true"   # CRUCIAL: Tells ZenRows to use residential proxies to bypass Cloudflare
     }
     
     try:
-        # GitHub asks ScraperAPI -> ScraperAPI bypasses Cloudflare -> Returns clean HTML
-        response = requests.get('http://api.scraperapi.com', params=payload, timeout=60)
+        # Send the request to ZenRows
+        response = requests.get(zenrows_endpoint, params=params, timeout=60)
         
         if response.status_code != 200:
-            print(f"⚠️ API Error: {response.status_code}")
+            print(f"⚠️ ZenRows API Error: {response.status_code} - {response.text}")
             return []
             
-        # 4. Parse the clean HTML with BeautifulSoup
+        # 4. Parse the clean HTML returned by ZenRows
         soup = BeautifulSoup(response.text, 'html.parser')
         job_cards = soup.find_all('td', class_='resultContent')
         
         if not job_cards:
-            print("  ⚠️ Indeed: No job cards found in the HTML returned by API.")
+            print("  ⚠️ Indeed: No job cards found. Cloudflare might have served a CAPTCHA anyway, or no jobs exist.")
             return []
             
         print(f"  ✅ Indeed: Found {len(job_cards)} job cards!")
@@ -717,7 +720,7 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str) -> list[dict]:
         return jobs
         
     except Exception as e:
-        print(f"⚠️ Indeed Scraping Error: {e}")
+        print(f"⚠️ Indeed ZenRows Error: {e}")
         return []
 
 
