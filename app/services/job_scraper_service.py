@@ -146,7 +146,7 @@ def _fetch_jobs_from_db(keyword: str, city: str) -> list[dict]:
         )
         
         with connection.cursor() as cursor:
-            # 1. BULLETPROOF KEYWORDS (Zero fuzzy matching)
+            # 1. SMART KEYWORDS (Catch variations like Web Dev for Frontend)
             kw_lower = keyword.lower()
             
             if "front" in kw_lower or "web" in kw_lower:
@@ -164,24 +164,27 @@ def _fetch_jobs_from_db(keyword: str, city: str) -> list[dict]:
                 
             elif "software" in kw_lower:
                 terms = ["%software%", "%sde%", "%programmer%"]
-                
             else:
                 core_word = keyword.split()[0]
                 terms = [f"%{core_word}%"]
             
-            # 2. ONLY SEARCH TITLES (Never search the skills column)
+            # Build dynamic OR clauses so the DB searches all variations
             title_clauses = " OR ".join(["title LIKE %s"] * len(terms))
+            skills_clauses = " OR ".join(["skills LIKE %s"] * len(terms))
             
+            # 2. SMART LOCATION (Always include Remote/WFH jobs for the user!)
             sql = f"""
             SELECT source, title, company as employer, location, link as apply_link, skills
             FROM jobs 
-            WHERE ({title_clauses})
+            WHERE ({title_clauses} OR {skills_clauses})
               AND (location LIKE %s OR location LIKE '%%Work From Home%%' OR location LIKE '%%Remote%%')
             ORDER BY id DESC
             LIMIT 150
             """
             
-            params = terms + [f"%{city}%"]
+            # Combine our terms with the user's city
+            params = terms + terms + [f"%{city}%"]
+            
             cursor.execute(sql, tuple(params))
             rows = cursor.fetchall()
             
