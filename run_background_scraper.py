@@ -48,8 +48,8 @@ if __name__ == "__main__":
     print("🚀 Starting Background Scrapers...")
     
     # Scrape for standard tech roles
-    keywords = ["Software Engineer", "Data Analyst", "Frontend Developer"]
-    cities = ["Mumbai", "Bangalore"]
+    keywords = ["Data Science", "Frontend Developer"]
+    cities = ["Mumbai"]
     
     for city in cities:
         for kw in keywords:

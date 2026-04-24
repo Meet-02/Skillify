@@ -146,37 +146,42 @@ def _fetch_jobs_from_db(keyword: str, city: str) -> list[dict]:
         )
         
         with connection.cursor() as cursor:
-            # 1. SMART KEYWORDS (Catch variations like Web Dev for Frontend)
+            # 1. BULLETPROOF KEYWORDS (Zero fuzzy matching)
             kw_lower = keyword.lower()
+            
             if "front" in kw_lower or "web" in kw_lower:
-                terms = ["%front%", "%web%", "%react%", "%ui%", "%javascript%"]
+                terms = ["%frontend%", "%front-end%", "%front end%", "%react%", "%angular%", "%vue%"]
+                
             elif "back" in kw_lower:
-                terms = ["%back%", "%node%", "%java%", "%api%", "%python%"]
+                terms = ["%backend%", "%back-end%", "%back end%", "%node%", "%django%", "%spring%"]
+                
             elif "data" in kw_lower or "machine" in kw_lower:
-                terms = ["%data%", "%machine%", "%ai%", "%ml%", "%analytics%"]
+                # NOTICE: We removed "%data%" so it completely ignores "Data Entry" and "Data Annotation"
+                terms = ["%data scien%", "%machine learning%", "%data analy%", "%data engineer%", "%artificial intelligence%"]
+                
+            elif "full" in kw_lower or "stack" in kw_lower:
+                terms = ["%full stack%", "%fullstack%", "%full-stack%", "%mern%"]
+                
             elif "software" in kw_lower:
-                terms = ["%software%", "%developer%", "%engineer%", "%sde%"]
+                terms = ["%software%", "%sde%", "%programmer%"]
+                
             else:
                 core_word = keyword.split()[0]
                 terms = [f"%{core_word}%"]
             
-            # Build dynamic OR clauses so the DB searches all variations
+            # 2. ONLY SEARCH TITLES (Never search the skills column)
             title_clauses = " OR ".join(["title LIKE %s"] * len(terms))
-            skills_clauses = " OR ".join(["skills LIKE %s"] * len(terms))
             
-            # 2. SMART LOCATION (Always include Remote/WFH jobs for the user!)
             sql = f"""
             SELECT source, title, company as employer, location, link as apply_link, skills
             FROM jobs 
-            WHERE ({title_clauses} OR {skills_clauses})
+            WHERE ({title_clauses})
               AND (location LIKE %s OR location LIKE '%%Work From Home%%' OR location LIKE '%%Remote%%')
             ORDER BY id DESC
             LIMIT 150
             """
             
-            # Combine our terms with the user's city
-            params = terms + terms + [f"%{city}%"]
-            
+            params = terms + [f"%{city}%"]
             cursor.execute(sql, tuple(params))
             rows = cursor.fetchall()
             
