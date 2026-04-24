@@ -148,22 +148,14 @@ def _fetch_jobs_from_db(keyword: str, city: str) -> list[dict]:
         with connection.cursor() as cursor:
             # 1. SMART KEYWORDS (Catch variations like Web Dev for Frontend)
             kw_lower = keyword.lower()
-            
             if "front" in kw_lower or "web" in kw_lower:
-                terms = ["%frontend%", "%front-end%", "%front end%", "%react%", "%angular%", "%vue%"]
-                
+                terms = ["%front%", "%web%", "%react%", "%ui%", "%javascript%"]
             elif "back" in kw_lower:
-                terms = ["%backend%", "%back-end%", "%back end%", "%node%", "%django%", "%spring%"]
-                
+                terms = ["%back%", "%node%", "%java%", "%api%", "%python%"]
             elif "data" in kw_lower or "machine" in kw_lower:
-                # NOTICE: We removed "%data%" so it completely ignores "Data Entry" and "Data Annotation"
-                terms = ["%data scien%", "%machine learning%", "%data analy%", "%data engineer%", "%artificial intelligence%"]
-                
-            elif "full" in kw_lower or "stack" in kw_lower:
-                terms = ["%full stack%", "%fullstack%", "%full-stack%", "%mern%"]
-                
+                terms = ["%machine%", "%ai%", "%ml%", "%analytics%"]
             elif "software" in kw_lower:
-                terms = ["%software%", "%sde%", "%programmer%"]
+                terms = ["%software%", "%developer%", "%engineer%", "%sde%"]
             else:
                 core_word = keyword.split()[0]
                 terms = [f"%{core_word}%"]
