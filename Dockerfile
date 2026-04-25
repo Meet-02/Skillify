@@ -21,6 +21,13 @@ RUN pip install https://github.com/explosion/spacy-models/releases/download/en_c
 # Copy the rest of your application code
 COPY . .
 
-# Start the application using gunicorn with exactly 1 worker to prevent OOM crashes
-# We use $PORT so Render can dynamically assign the port it needs
-CMD ["sh", "-c", "gunicorn -w 1 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:${PORT:-10000}"]
+# Force single-threaded numpy/OpenBLAS at the OS level — prevents deadlock on Render
+ENV OMP_NUM_THREADS=1
+ENV OPENBLAS_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV NUMEXPR_NUM_THREADS=1
+
+# --timeout 120  : give scoring + DB fetch up to 2 min before Gunicorn kills the worker
+# --keep-alive 5 : sensible keepalive for Render's load balancer
+# -w 1           : single worker — Render free tier has ~512MB RAM, more workers = OOM
+CMD ["sh", "-c", "gunicorn -w 1 -k uvicorn.workers.UvicornWorker --timeout 120 --keep-alive 5 app.main:app --bind 0.0.0.0:${PORT:-10000}"]

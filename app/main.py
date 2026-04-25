@@ -1,7 +1,14 @@
+# ── MUST be first — before numpy/sklearn are imported anywhere ───────────────
+import os
+os.environ["OMP_NUM_THREADS"]      = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"]      = "1"
+os.environ["NUMEXPR_NUM_THREADS"]  = "1"
+# ─────────────────────────────────────────────────────────────────────────────
+
 import shutil
 from pathlib import Path
 from datetime import datetime
-import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Form, Depends, UploadFile, File, HTTPException
 from fastapi.responses import RedirectResponse
