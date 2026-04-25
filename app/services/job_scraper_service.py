@@ -61,8 +61,6 @@ DOMAIN_KEYWORDS: dict[str, str] = {
     "uiux":       "UI UX Designer",
     "qa":         "QA Testing",
     "cyber":      "Cybersecurity",
-    "product":    "Product Manager",
-    "embedded":   "Embedded Systems",
     "blockchain": "Blockchain",
     "marketing":  "Marketing",
     "finance":    "Finance",
@@ -132,8 +130,12 @@ def _extract_skills_fast(text: str) -> list[str]:
 # SOURCE: TIDB DATABASE (Replaces Selenium in Production)
 # ════════════════════════════════════════════════════════════════════════════
 
-def _fetch_jobs_from_db(keyword: str, city: str) -> list[dict]:
-    """Fetch jobs previously scraped by GitHub Actions from TiDB."""
+# ════════════════════════════════════════════════════════════════════════════
+# SOURCE: TIDB DATABASE (Replaces Selenium in Production)
+# ════════════════════════════════════════════════════════════════════════════
+
+def _fetch_jobs_from_db(domain: str, city: str) -> list[dict]:
+    """Fetch jobs previously scraped by GitHub Actions from TiDB using strict domain tags."""
     try:
         connection = pymysql.connect(
             host=os.getenv('TIDB_HOST'),
@@ -146,38 +148,19 @@ def _fetch_jobs_from_db(keyword: str, city: str) -> list[dict]:
         )
         
         with connection.cursor() as cursor:
-            # 1. SMART KEYWORDS (Catch variations like Web Dev for Frontend)
-            kw_lower = keyword.lower()
-            if "front" in kw_lower or "web" in kw_lower:
-                terms = ["%front%", "%web%", "%react%", "%ui%", "%javascript%"]
-            elif "back" in kw_lower:
-                terms = ["%back%", "%node%", "%java%", "%api%", "%python%"]
-            elif "data" in kw_lower or "machine" in kw_lower:
-                terms = ["%machine%", "%ai%", "%ml%", "%analytics%"]
-            elif "software" in kw_lower:
-                terms = ["%software%", "%developer%", "%engineer%", "%sde%"]
-            else:
-                core_word = keyword.split()[0]
-                terms = [f"%{core_word}%"]
-            
-            # Build dynamic OR clauses so the DB searches all variations
-            title_clauses = " OR ".join(["title LIKE %s"] * len(terms))
-            skills_clauses = " OR ".join(["skills LIKE %s"] * len(terms))
-            
-            # 2. SMART LOCATION (Always include Remote/WFH jobs for the user!)
-            sql = f"""
-            SELECT source, title, company as employer, location, link as apply_link, skills
+            # 1. THE BULLETPROOF DOMAIN SEARCH
+            # No more wildcards! No more guessing titles! 
+            sql = """
+            SELECT source, title, company as employer, location, link as apply_link, skills, domain
             FROM jobs 
-            WHERE ({title_clauses} OR {skills_clauses})
-              AND (location LIKE %s OR location LIKE '%%Work From Home%%' OR location LIKE '%%Remote%%')
+            WHERE domain = %s
+              AND (LOWER(location) LIKE %s OR LOWER(location) LIKE '%%work from home%%' OR LOWER(location) LIKE '%%remote%%')
             ORDER BY id DESC
             LIMIT 150
             """
             
-            # Combine our terms with the user's city
-            params = terms + terms + [f"%{city}%"]
-            
-            cursor.execute(sql, tuple(params))
+            # Pass ONLY the exact domain tag and the city
+            cursor.execute(sql, (domain, f"%{city.lower()}%"))
             rows = cursor.fetchall()
             
             db_jobs = []
@@ -403,7 +386,7 @@ async def aggregate_jobs(
     tasks = []
 
     if "database" in sources:
-        tasks.append(loop.run_in_executor(_EXECUTOR, _fetch_jobs_from_db, keyword, city))
+        tasks.append(loop.run_in_executor(_EXECUTOR, _fetch_jobs_from_db, domain_clean, city))
 
     if "internshala" in sources:
         from app.services.internshala_scraper import scrape_internshala_fast

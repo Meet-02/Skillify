@@ -8,8 +8,8 @@ from app.services.indeed_scraper import scrape_indeed_fast
 # Load the variables from the .env file
 load_dotenv()
 
-def save_jobs_to_tidb(jobs, source):
-    # Debug print to ensure .env is loading!
+# 1. ADDED domain_tag TO THE FUNCTION DEFINITION HERE 👇
+def save_jobs_to_tidb(jobs, source, domain_tag):
     print(f"Connecting to DB: {os.getenv('TIDB_HOST')} as {os.getenv('TIDB_USER')}")
 
     # Connect to your TiDB database
@@ -18,49 +18,53 @@ def save_jobs_to_tidb(jobs, source):
         user=os.getenv('TIDB_USER'),
         password=os.getenv('TIDB_PASS'),
         database=os.getenv('TIDB_NAME'),
-        port=4000,                     # <--- MAKE SURE THIS IS EXACTLY 4000
+        port=4000,
         ssl={'ssl_mode': 'PREFERRED'}
     )
     
     with connection.cursor() as cursor:
         for job in jobs:
+            # 2. ADDED 'domain' TO COLUMNS AND A 7TH '%s' PLACEHOLDER 👇
             sql = """
-            INSERT IGNORE INTO jobs (source, title, company, location, link, skills)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT IGNORE INTO jobs (source, title, company, location, link, skills, domain)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
             skills_str = ", ".join(job.get('skills', []))
             
+            # 3. MATCHED THE 7 VARIABLES TO THE 7 PLACEHOLDERS 👇
             cursor.execute(sql, (
                 job.get('source', source),
                 job.get('title', ''),
                 job.get('employer', ''),
                 job.get('location', ''),
                 job.get('apply_link', ''),
-                skills_str
+                skills_str,
+                domain_tag  # <--- The sticky note is now correctly at the end!
             ))
     connection.commit()
     connection.close()
     print(f"✅ Saved {len(jobs)} {source} jobs to TiDB.")
 
-# ... rest of the code remains the same ...
-
 if __name__ == "__main__":
     print("🚀 Starting Background Scrapers...")
     
-    # Scrape for standard tech roles
-    keywords = ["Data Science", "Frontend Developer"]
+    job_targets = {
+        "Frontend Developer": "frontend",
+        "Data Science": "data"
+    }
+    
     cities = ["Mumbai"]
     
-    for city in cities:
-        for kw in keywords:
-            print(f"Scraping Indeed for {kw}...")
+    for kw, domain_tag in job_targets.items():
+        for city in cities:
+            print(f"Scraping Indeed for {kw} in {city}...")
             indeed_jobs = scrape_indeed_fast(kw, city, "3days")
             if indeed_jobs:
-                save_jobs_to_tidb(indeed_jobs, "Indeed")
+                save_jobs_to_tidb(indeed_jobs, "Indeed", domain_tag)
                 
-            print(f"Scraping Internshala for {kw}...")
+            print(f"Scraping Internshala for {kw} in {city}...")
             internshala_jobs = scrape_internshala_fast(kw, city, "3days")
             if internshala_jobs:
-                save_jobs_to_tidb(internshala_jobs, "Internshala")
+                save_jobs_to_tidb(internshala_jobs, "Internshala", domain_tag)
             
     print("🎉 Background scraping complete!")
