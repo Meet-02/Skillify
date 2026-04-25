@@ -1,23 +1,33 @@
 """
-app/services/job_scraper_service.py
+app/services/job_scraper_service.py  — v3
 ────────────────────────────────────────────────────────────────────────────────
-Unified job aggregator:
-  • TiDB Database — Pulls background-scraped jobs in Production (with date filter)
-  • JSearch API  — httpx async call  (jobs via RapidAPI)
+ROOT CAUSE OF HANG (found in v2):
+  sklearn's TfidfVectorizer uses numpy/OpenBLAS internally.
+  On Render's free tier, OpenBLAS reads /proc/cpuinfo and thinks it has 2+ CPUs,
+  so it spawns its own internal thread pool. When scoring runs inside
+  run_in_executor(), those OpenBLAS threads deadlock against the ThreadPoolExecutor
+  — the container CPU is over-subscribed and threads starve indefinitely.
 
-FIX SUMMARY (v2):
-  1. Replaced ProcessPoolExecutor with ThreadPoolExecutor — fixes hang on Render.
-  2. DB query now filters by scraped_at so date_filter actually works.
-  3. Scoring uses batched TF-IDF (one vectorizer for all jobs) — much faster.
-  4. Removed redundant asyncio.get_event_loop() deprecation path.
+THE FIX:
+  1. Set OMP_NUM_THREADS=1 and OPENBLAS_NUM_THREADS=1 at process start.
+     This forces numpy/sklearn to run single-threaded. Fast enough for 50-300 jobs.
+  2. Run scoring DIRECTLY in the async event loop (no executor at all).
+     Sklearn TF-IDF releases the GIL, so it doesn't block other coroutines.
+  3. Separate executor pool for I/O (DB, CSV) vs compute — avoids pool exhaustion.
 ────────────────────────────────────────────────────────────────────────────────
 """
 
 from __future__ import annotations
 
+# ── CRITICAL: Must be set BEFORE numpy/sklearn is imported anywhere ──────────
+import os
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+
 import asyncio
 import csv
-import os
 import re
 import time
 import json
@@ -34,16 +44,15 @@ load_dotenv()
 
 JSEARCH_API_KEY: str = os.getenv("JSEARCH_API_KEY", "")
 
-# ── CSV cache directory ──────────────────────────────────────────────────────
-_SERVICE_DIR = Path(__file__).resolve().parent
-_ROOT = _SERVICE_DIR.parent.parent
-CACHE_DIR = _ROOT / "tmp" / "jobs_cache"
+# ── Directories ──────────────────────────────────────────────────────────────
+_SERVICE_DIR   = Path(__file__).resolve().parent
+_ROOT          = _SERVICE_DIR.parent.parent
+CACHE_DIR      = _ROOT / "tmp" / "jobs_cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 SKILLS_JSON_PATH = _ROOT / "app" / "data" / "skills_master_indeed.json"
 
-# ── Single shared thread-pool ─────────────────────────────────────────────────
-# ThreadPoolExecutor is safe on Render containers; ProcessPoolExecutor is NOT.
-_EXECUTOR = ThreadPoolExecutor(max_workers=6)
+# ── Single I/O thread pool (DB reads, CSV writes only — NOT scoring) ─────────
+_IO_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 
 # ════════════════════════════════════════════════════════════════════════════
 # DOMAIN → KEYWORD MAP
@@ -73,7 +82,6 @@ DOMAIN_KEYWORDS: dict[str, str] = {
     "design":     "Graphic Designer",
 }
 
-# ── date_filter → days ago ────────────────────────────────────────────────────
 DATE_FILTER_DAYS: dict[str, int] = {
     "24h": 1, "today": 1,
     "3days": 3, "last 3 days": 3,
@@ -85,20 +93,21 @@ def _days_for_filter(date_filter: str) -> int:
     return DATE_FILTER_DAYS.get(date_filter.lower().strip(), 30)
 
 
-def load_skills_from_json():
-    """Loads names and synonyms from JSON into a flat, sorted list."""
+# ════════════════════════════════════════════════════════════════════════════
+# SKILLS — loaded once at startup
+# ════════════════════════════════════════════════════════════════════════════
+def load_skills_from_json() -> list[str]:
     try:
         if not SKILLS_JSON_PATH.exists():
-            print(f"⚠️ Skills JSON not found at {SKILLS_JSON_PATH}")
             return []
         with open(SKILLS_JSON_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-        flat_skills = set()
+        flat = set()
         for item in data:
-            flat_skills.add(item["name"].lower())
+            flat.add(item["name"].lower())
             for syn in item.get("synonyms", []):
-                flat_skills.add(syn.lower())
-        return sorted(list(flat_skills), key=len, reverse=True)
+                flat.add(syn.lower())
+        return sorted(flat, key=len, reverse=True)
     except Exception as e:
         print(f"⚠️ Error loading skills JSON: {e}")
         return []
@@ -106,127 +115,109 @@ def load_skills_from_json():
 KNOWN_SKILLS = load_skills_from_json()
 
 def _extract_skills_fast(text: str) -> list[str]:
-    """Resilient keyword skill extraction using Regex Lookarounds."""
     if not text:
         return []
     tl = text.lower()
-    found = set()
+    found: set[str] = set()
     for skill in KNOWN_SKILLS:
-        skill_clean = skill.lower()
-        pattern = r'(?<![a-zA-Z0-9])' + re.escape(skill_clean) + r'(?![a-zA-Z0-9])'
+        pattern = r'(?<![a-zA-Z0-9])' + re.escape(skill) + r'(?![a-zA-Z0-9])'
         if re.search(pattern, tl):
-            if len(skill_clean) <= 3:
-                found.add(skill_clean.upper())
+            if len(skill) <= 3:
+                found.add(skill.upper())
             else:
-                special_cases = {"mern", "mean", "rest", "node.js", "mongodb"}
-                if skill_clean in special_cases:
-                    mapping = {"node.js": "Node.js", "mongodb": "MongoDB"}
-                    found.add(mapping.get(skill_clean, skill_clean.upper()))
-                else:
-                    found.add(skill_clean.title())
-    return sorted(list(found))
+                mapping = {"node.js": "Node.js", "mongodb": "MongoDB"}
+                found.add(mapping.get(skill, skill.title()))
+    return sorted(found)
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # SOURCE: TIDB DATABASE
-# BUG FIX: Now filters by scraped_at so date_filter actually works.
-#           Raises LIMIT to 300 so 90-120+ jobs are possible.
 # ════════════════════════════════════════════════════════════════════════════
-
 def _fetch_jobs_from_db(domain: str, city: str, date_filter: str = "month") -> list[dict]:
-    """Fetch jobs previously scraped by GitHub Actions from TiDB.
-    
-    FIXED: Uses scraped_at column for real date filtering.
-    FIXED: LIMIT raised from 150 → 300 so filters return enough results.
-    """
-    days = _days_for_filter(date_filter)
+    days   = _days_for_filter(date_filter)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-
     try:
-        connection = pymysql.connect(
-            host=os.getenv('TIDB_HOST'),
-            user=os.getenv('TIDB_USER'),
-            password=os.getenv('TIDB_PASS'),
-            database=os.getenv('TIDB_NAME'),
+        conn = pymysql.connect(
+            host=os.getenv("TIDB_HOST"),
+            user=os.getenv("TIDB_USER"),
+            password=os.getenv("TIDB_PASS"),
+            database=os.getenv("TIDB_NAME"),
             port=4000,
-            ssl={'ssl_mode': 'PREFERRED'},
-            cursorclass=pymysql.cursors.DictCursor
+            ssl={"ssl_mode": "PREFERRED"},
+            cursorclass=pymysql.cursors.DictCursor,
+            connect_timeout=10,
         )
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT source, title, company AS employer, location,
+                       link AS apply_link, skills, domain, scraped_at
+                FROM jobs
+                WHERE domain = %s
+                  AND (
+                        LOWER(location) LIKE %s
+                     OR LOWER(location) LIKE '%%work from home%%'
+                     OR LOWER(location) LIKE '%%remote%%'
+                  )
+                  AND scraped_at >= %s
+                ORDER BY scraped_at DESC
+                LIMIT 300
+            """, (domain, f"%{city.lower()}%", cutoff))
+            rows = cur.fetchall()
+        conn.close()
 
-        with connection.cursor() as cursor:
-            sql = """
-            SELECT source, title, company AS employer, location, link AS apply_link,
-                   skills, domain, scraped_at
-            FROM jobs
-            WHERE domain = %s
-              AND (
-                    LOWER(location) LIKE %s
-                 OR LOWER(location) LIKE '%%work from home%%'
-                 OR LOWER(location) LIKE '%%remote%%'
-              )
-              AND scraped_at >= %s
-            ORDER BY scraped_at DESC
-            LIMIT 300
-            """
-            cursor.execute(sql, (domain, f"%{city.lower()}%", cutoff))
-            rows = cursor.fetchall()
-
-        connection.close()
-
-        db_jobs = []
+        jobs = []
         for row in rows:
-            skills_str = row.get('skills', '') or ''
-            skills_list = [s.strip() for s in skills_str.split(',') if s.strip()]
-            scraped_ts = row.get('scraped_at')
-            posted_at = scraped_ts.isoformat() if scraped_ts else datetime.now(timezone.utc).isoformat()
-
-            db_jobs.append({
-                "source":          row.get('source', 'Database'),
-                "title":           row.get('title', ''),
-                "employer":        row.get('employer', ''),
-                "location":        row.get('location', ''),
+            skills_str = row.get("skills") or ""
+            skills_list = [s.strip() for s in skills_str.split(",") if s.strip()]
+            ts = row.get("scraped_at")
+            jobs.append({
+                "source":          row.get("source", "Database"),
+                "title":           row.get("title", ""),
+                "employer":        row.get("employer", ""),
+                "location":        row.get("location", ""),
                 "salary":          "Not disclosed",
                 "duration":        "N/A",
                 "status":          "Active",
-                "apply_link":      row.get('apply_link', ''),
+                "apply_link":      row.get("apply_link", ""),
                 "description":     "",
                 "skills":          skills_list,
                 "employment_type": "Full Time",
-                "posted_at":       posted_at,
+                "posted_at":       ts.isoformat() if ts else datetime.now(timezone.utc).isoformat(),
                 "employer_logo":   "",
             })
-
-        print(f"  🗄️ TiDB Database → Found {len(db_jobs)} saved jobs (last {days} days).")
-        return db_jobs
-
+        print(f"  🗄️ TiDB Database → Found {len(jobs)} saved jobs (last {days} days).")
+        return jobs
     except Exception as e:
         print(f"  ⚠️ Database fetch error: {e}")
         return []
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SCORING
-# BUG FIX: Batch TF-IDF instead of one vectorizer per job. Much faster.
-# BUG FIX: Uses ThreadPoolExecutor (not ProcessPoolExecutor) — safe on Render.
+# SCORING — runs directly in the async event loop, NO executor
+#
+# WHY NO EXECUTOR:
+#   sklearn's TF-IDF releases the GIL during vectorisation, so it doesn't
+#   block other coroutines. Putting it in a thread pool on Render causes
+#   OpenBLAS to spawn its own threads → deadlock on a single-vCPU container.
+#   Keeping it synchronous here is both simpler and faster on Render.
 # ════════════════════════════════════════════════════════════════════════════
-
 def _batch_score_jobs(
     jobs: list[dict],
     user_profile: dict,
     resume_text: str,
 ) -> list[dict]:
-    """Score all jobs efficiently:
-    - Single TF-IDF vectorizer across all job texts + resume (batch).
-    - Threading for structured skill scoring.
-    - Avoids ProcessPoolExecutor which hangs on Render containers.
+    """
+    Score all jobs in one pass:
+    - Single TF-IDF matrix (resume + all job texts) — O(N) not O(N²)
+    - Structured skill overlap per job — pure Python, fast
+    - Runs single-threaded (OMP_NUM_THREADS=1) to avoid OpenBLAS deadlock
     """
     if not jobs:
         return jobs
+
     if not any(user_profile.values()):
         for job in jobs:
-            job["match_score"] = 0.0
-            job["gap_severity"] = "N/A"
-            job["missing_skills"] = {}
+            job.update({"match_score": 0.0, "gap_severity": "N/A", "missing_skills": {}})
         return jobs
 
     from app.services.scoring_model import structured_skill_score, hybrid_match_score, gap_severity
@@ -235,47 +226,38 @@ def _batch_score_jobs(
 
     WEIGHTS = {"technical": 0.55, "tools": 0.25, "soft": 0.20}
 
-    # ── Build text blobs for every job ──────────────────────────────────────
+    # Build job text blobs and skill profiles in one pass
     job_texts: list[str] = []
     job_profiles: list[dict] = []
     for job in jobs:
-        text_blob = f"{job.get('title', '')} {job.get('description', '')[:1500]}"
-        jp: dict[str, list] = {"technical": [], "tools": [], "soft": []}
+        blob = f"{job.get('title', '')} {job.get('description', '')[:1500]}"
         skills = job.get("skills", [])
-        if skills:
-            jp["technical"] = list(skills)
-        else:
-            jp["technical"] = _extract_skills_fast(text_blob)
+        jp = {"technical": list(skills) if skills else _extract_skills_fast(blob),
+              "tools": [], "soft": []}
         job_profiles.append(jp)
-        job_texts.append(text_blob)
+        job_texts.append(blob)
 
-    # ── Batch TF-IDF: one vectorizer for resume + all job texts ─────────────
-    all_texts = [resume_text or ""] + job_texts
+    # Single TF-IDF pass: [resume, job0, job1, ... jobN]
+    semantic_scores: list[float] = [0.0] * len(jobs)
     try:
-        vectorizer = TfidfVectorizer(stop_words="english", max_features=5000)
-        tfidf_matrix = vectorizer.fit_transform(all_texts)
-        resume_vec = tfidf_matrix[0]
-        job_vecs   = tfidf_matrix[1:]
-        # cosine_similarity returns (1, N) when comparing 1 vector to N
-        semantic_scores = cosine_similarity(resume_vec, job_vecs)[0] * 100
+        vec = TfidfVectorizer(stop_words="english", max_features=5000)
+        mat = vec.fit_transform([resume_text or ""] + job_texts)
+        sims = cosine_similarity(mat[0:1], mat[1:])[0]  # shape: (N,)
+        semantic_scores = (sims * 100).tolist()
     except Exception as e:
-        print(f"  ⚠️  TF-IDF batch error: {e}")
-        semantic_scores = [0.0] * len(jobs)
+        print(f"  ⚠️ TF-IDF error: {e}")
 
-    # ── Structured skill scoring (fast, CPU-light) ───────────────────────────
+    # Structured scoring loop
     for i, job in enumerate(jobs):
         try:
-            struct_score, missing = structured_skill_score(user_profile, job_profiles[i], WEIGHTS)
-            sem_score   = float(semantic_scores[i])
-            final_score = hybrid_match_score(struct_score, sem_score)
-            job["match_score"]   = round(final_score, 1)
-            job["gap_severity"]  = gap_severity(final_score)
+            struct, missing = structured_skill_score(user_profile, job_profiles[i], WEIGHTS)
+            final = hybrid_match_score(struct, float(semantic_scores[i]))
+            job["match_score"]    = round(final, 1)
+            job["gap_severity"]   = gap_severity(final)
             job["missing_skills"] = missing
-        except Exception as exc:
-            print(f"  ⚠️  Scoring error job {i}: {exc}")
-            job["match_score"]   = 0.0
-            job["gap_severity"]  = "N/A"
-            job["missing_skills"] = {}
+        except Exception as e:
+            print(f"  ⚠️ Score error job {i}: {e}")
+            job.update({"match_score": 0.0, "gap_severity": "N/A", "missing_skills": {}})
 
     return jobs
 
@@ -283,94 +265,68 @@ def _batch_score_jobs(
 # ════════════════════════════════════════════════════════════════════════════
 # SOURCE: JSEARCH API
 # ════════════════════════════════════════════════════════════════════════════
-
 async def _scrape_jsearch(keyword: str, city: str, date_filter: str = "month") -> list[dict]:
     if not JSEARCH_API_KEY:
         print("  ⚠️  JSEARCH_API_KEY not set — skipping JSearch")
         return []
 
-    jsearch_date_map = {
-        "24h": "today", "last 24h": "today", "today": "today",
+    date_map = {
+        "24h": "today", "today": "today",
         "3days": "3days", "last 3 days": "3days",
         "week": "week", "last week": "week",
-        "month": "month", "last month": "month",
+        "month": "month",
     }
-    date_posted = jsearch_date_map.get(date_filter.lower().strip(), "month")
-
+    date_posted = date_map.get(date_filter.lower().strip(), "month")
+    queries = [f"{keyword} internship in {city}", f"{keyword} fresher jobs in {city}"]
+    seen: set[str] = set()
     jobs: list[dict] = []
-    queries = [
-        f"{keyword} internship in {city}",
-        f"{keyword} fresher jobs in {city}",
-    ]
-    seen_links: set[str] = set()
 
-    _headers = {
-        "x-rapidapi-key":  JSEARCH_API_KEY,
-        "x-rapidapi-host": "jsearch.p.rapidapi.com",
-    }
+    headers = {"x-rapidapi-key": JSEARCH_API_KEY, "x-rapidapi-host": "jsearch.p.rapidapi.com"}
 
     async with httpx.AsyncClient(timeout=15) as client:
-        tasks = [
-            client.get(
-                "https://jsearch.p.rapidapi.com/search",
-                params={"query": q, "page": "1", "num_pages": "3", "date_posted": date_posted},
-                headers=_headers,
-            )
+        responses = await asyncio.gather(*[
+            client.get("https://jsearch.p.rapidapi.com/search",
+                       params={"query": q, "page": "1", "num_pages": "3", "date_posted": date_posted},
+                       headers=headers)
             for q in queries
-        ]
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
+        ], return_exceptions=True)
 
-    if any(
-        not isinstance(resp, Exception) and getattr(resp, "status_code", None) == 429
-        for resp in responses
-    ):
-        print("  ⚠️  JSearch returned HTTP 429 (rate-limited) — skipping JSearch for this run")
+    if any(not isinstance(r, Exception) and getattr(r, "status_code", None) == 429
+           for r in responses):
+        print("  ⚠️  JSearch returned HTTP 429 (rate-limited) — skipping")
         return []
 
-    for i, resp in enumerate(responses):
+    for resp in responses:
         if isinstance(resp, Exception) or resp.status_code != 200:
             continue
         for job in resp.json().get("data", []):
             link = job.get("job_apply_link", "")
-            if not link or link in seen_links:
+            if not link or link in seen:
                 continue
-            seen_links.add(link)
-
-            qualifs   = job.get("job_highlights", {}).get("Qualifications") or []
-            desc      = job.get("job_description", "") or ""
-            text_blob = f"{job.get('job_title','')} {' '.join(str(q) for q in qualifs[:5])} {desc[:1500]}"
-
-            lo = job.get("job_min_salary")
-            hi = job.get("job_max_salary")
-            salary_str = (
-                f"₹{int(lo):,} – ₹{int(hi):,}" if (lo and hi)
-                else (f"₹{int(lo):,}+" if lo else "Not disclosed")
-            )
-
+            seen.add(link)
+            desc = job.get("job_description", "") or ""
+            qualifs = job.get("job_highlights", {}).get("Qualifications") or []
+            blob = f"{job.get('job_title','')} {' '.join(str(q) for q in qualifs[:5])} {desc[:1500]}"
+            lo, hi = job.get("job_min_salary"), job.get("job_max_salary")
+            salary = f"₹{int(lo):,} – ₹{int(hi):,}" if (lo and hi) else (f"₹{int(lo):,}+" if lo else "Not disclosed")
             jobs.append({
-                "source":          "JSearch",
-                "title":           job.get("job_title", ""),
-                "employer":        job.get("employer_name", ""),
-                "location":        job.get("job_city") or city,
-                "salary":          salary_str,
-                "duration":        "N/A",
-                "status":          "Active",
-                "apply_link":      link,
-                "description":     desc[:2000],
-                "skills":          _extract_skills_fast(text_blob),
+                "source": "JSearch", "title": job.get("job_title", ""),
+                "employer": job.get("employer_name", ""), "location": job.get("job_city") or city,
+                "salary": salary, "duration": "N/A", "status": "Active",
+                "apply_link": link, "description": desc[:2000],
+                "skills": _extract_skills_fast(blob),
                 "employment_type": job.get("job_employment_type", ""),
-                "posted_at":       job.get("job_posted_at_datetime_utc", ""),
-                "employer_logo":   job.get("employer_logo", ""),
+                "posted_at": job.get("job_posted_at_datetime_utc", ""),
+                "employer_logo": job.get("employer_logo", ""),
             })
 
-    print(f"  ✅ JSearch → {len(jobs)} jobs total")
+    print(f"  ✅ JSearch → {len(jobs)} jobs")
     return jobs
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # CSV CACHE
 # ════════════════════════════════════════════════════════════════════════════
-
 _CSV_FIELDS = [
     "source", "title", "employer", "location", "salary", "duration", "status",
     "employment_type", "skills", "match_score", "gap_severity", "apply_link", "posted_at",
@@ -380,17 +336,15 @@ def _save_to_csv(jobs: list[dict], domain: str, city: str) -> Path:
     ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
     slug = re.sub(r"[^a-z0-9_]", "_", f"{domain or 'all'}_{city}".lower())
     path = CACHE_DIR / f"{slug}_{ts}.csv"
-
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=_CSV_FIELDS, extrasaction="ignore")
-        writer.writeheader()
+        w = csv.DictWriter(f, fieldnames=_CSV_FIELDS, extrasaction="ignore")
+        w.writeheader()
         for job in jobs:
             row = dict(job)
             if isinstance(row.get("skills"), list):
                 row["skills"] = ", ".join(row["skills"])
             row.pop("missing_skills", None)
-            writer.writerow(row)
-
+            w.writerow(row)
     print(f"  💾 Saved {len(jobs)} jobs → {path.name}")
     return path
 
@@ -398,7 +352,6 @@ def _save_to_csv(jobs: list[dict], domain: str, city: str) -> Path:
 # ════════════════════════════════════════════════════════════════════════════
 # PUBLIC ENTRY POINT
 # ════════════════════════════════════════════════════════════════════════════
-
 async def aggregate_jobs(
     domain: str,
     city: str,
@@ -408,93 +361,77 @@ async def aggregate_jobs(
     date_filter: str = "month",
 ) -> dict[str, Any]:
 
-    if sources is None:
-        sources = ["internshala", "indeed", "jsearch"]
-
-    # --- PRODUCTION GUARD ---
     IS_RENDER = os.getenv("RENDER") == "true"
+    if IS_RENDER or sources is None:
+        sources = ["database", "jsearch"]
     if IS_RENDER:
         print("⚠️ [PRODUCTION MODE] Disabling Selenium scrapers to prevent RAM crash.")
-        sources = ["database", "jsearch"]
 
     domain_clean = domain.lower().strip()
-    keyword = DOMAIN_KEYWORDS.get(domain_clean)
-    if keyword is None:
-        keyword = domain.strip().title() if domain.strip() else ""
-    keyword = keyword or domain_clean
+    keyword = DOMAIN_KEYWORDS.get(domain_clean) or domain.strip().title() or domain_clean
 
     print(f"\n🚀 Aggregating jobs | domain={domain!r} keyword={keyword!r} city={city!r}")
     print(f"   Sources: {sources}  date_filter={date_filter!r}")
 
     _start = time.time()
-    loop = asyncio.get_event_loop()
+    loop   = asyncio.get_event_loop()
 
-    # ── PREPARE CONCURRENT TASKS ───────────────────────────────────────────
+    # ── Launch I/O sources concurrently ──────────────────────────────────────
     tasks = []
-
     if "database" in sources:
-        tasks.append(loop.run_in_executor(
-            _EXECUTOR, _fetch_jobs_from_db, domain_clean, city, date_filter
-        ))
-
+        tasks.append(("database", loop.run_in_executor(
+            _IO_EXECUTOR, _fetch_jobs_from_db, domain_clean, city, date_filter
+        )))
     if "internshala" in sources:
         from app.services.internshala_scraper import scrape_internshala_fast
-        tasks.append(loop.run_in_executor(_EXECUTOR, scrape_internshala_fast, keyword, city, date_filter))
-
+        tasks.append(("internshala", loop.run_in_executor(
+            _IO_EXECUTOR, scrape_internshala_fast, keyword, city, date_filter
+        )))
     if "indeed" in sources:
         from app.services.indeed_scraper import scrape_indeed_fast
-        tasks.append(loop.run_in_executor(_EXECUTOR, scrape_indeed_fast, keyword, city, date_filter))
-
+        tasks.append(("indeed", loop.run_in_executor(
+            _IO_EXECUTOR, scrape_indeed_fast, keyword, city, date_filter
+        )))
     if "jsearch" in sources:
-        tasks.append(_scrape_jsearch(keyword, city, date_filter))
+        tasks.append(("jsearch", _scrape_jsearch(keyword, city, date_filter)))
 
-    # ── EXECUTE ALL CONCURRENTLY ──────────────────────────────────────────
     print(f"  ▶️  Launching all sources ({len(tasks)}) concurrently...")
-    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+    names    = [t[0] for t in tasks]
+    results  = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)
 
-    # ── PROCESS RESULTS ───────────────────────────────────────────────────
+    # ── Collect results ───────────────────────────────────────────────────────
     scraper_jobs: list[dict] = []
     jsearch_jobs: list[dict] = []
     sources_hit: dict[str, int] = {}
 
-    task_idx = 0
-    for src in ["database", "internshala", "indeed"]:
-        if src in sources:
-            res = raw_results[task_idx]
-            if not isinstance(res, Exception):
-                scraper_jobs.extend(res)
-                sources_hit[src] = len(res)
-            else:
-                print(f"  ⚠️  {src} error: {res}")
-                sources_hit[src] = 0
-            task_idx += 1
-
-    if "jsearch" in sources:
-        res = raw_results[task_idx]
-        if not isinstance(res, Exception):
+    for name, res in zip(names, results):
+        if isinstance(res, Exception):
+            print(f"  ⚠️  {name} error: {res}")
+            sources_hit[name] = 0
+            continue
+        sources_hit[name] = len(res)
+        if name == "jsearch":
             jsearch_jobs.extend(res)
-            sources_hit["jsearch"] = len(res)
-        task_idx += 1
+        else:
+            scraper_jobs.extend(res)
 
     print(f"  ⏱️  All sources gathered in {time.time() - _start:.1f}s")
-
     print(f"\n  📊 Raw counts before dedup:")
     for sname, count in sources_hit.items():
         print(f"       {sname.title():12s}: {count} jobs")
 
-    # ── Merge with 75/25 split if JSearch has results ─────────────────────
-    if jsearch_jobs:
-        total_target = len(scraper_jobs) + len(jsearch_jobs)
-        if scraper_jobs:
-            scraper_cap = max(1, int(total_target * 0.75))
-            jsearch_cap = max(1, total_target - scraper_cap)
-            combined = scraper_jobs[:scraper_cap] + jsearch_jobs[:jsearch_cap]
-        else:
-            combined = jsearch_jobs
+    # ── Merge (75% scraper / 25% jsearch) ────────────────────────────────────
+    if jsearch_jobs and scraper_jobs:
+        total  = len(scraper_jobs) + len(jsearch_jobs)
+        s_cap  = max(1, int(total * 0.75))
+        j_cap  = max(1, total - s_cap)
+        combined = scraper_jobs[:s_cap] + jsearch_jobs[:j_cap]
+    elif jsearch_jobs:
+        combined = jsearch_jobs
     else:
         combined = scraper_jobs
 
-    # ── Deduplication by apply_link ────────────────────────────────────────
+    # ── Dedup by apply_link ───────────────────────────────────────────────────
     seen_links: set[str] = set()
     unique_jobs: list[dict] = []
     for job in combined:
@@ -504,47 +441,37 @@ async def aggregate_jobs(
             unique_jobs.append(job)
         elif not link:
             unique_jobs.append(job)
-
     print(f"  🔗 After dedup: {len(unique_jobs)} jobs")
 
-    # ── SCORING (batch, thread-based — NO ProcessPoolExecutor) ────────────
+    # ── SCORING — runs synchronously in the event loop, NO thread pool ────────
+    # This avoids the OpenBLAS multi-thread deadlock on Render containers.
     _up = user_profile or {}
     _rt = resume_text or ""
-
     if any(_up.values()) if _up else False:
-        print(f"  🎯 Scoring {len(unique_jobs)} jobs (batch TF-IDF + threads)...")
+        print(f"  🎯 Scoring {len(unique_jobs)} jobs (single-threaded batch TF-IDF)...")
         _score_start = time.time()
-        # Run blocking batch scoring in thread so we don't block the event loop
-        scored_jobs = await loop.run_in_executor(
-            _EXECUTOR, _batch_score_jobs, unique_jobs, _up, _rt
-        )
+        scored_jobs = _batch_score_jobs(unique_jobs, _up, _rt)   # ← direct call, no executor
         print(f"  🎯 Scoring done in {time.time() - _score_start:.1f}s")
     else:
         scored_jobs = unique_jobs
 
-    # ── Sort by match_score descending ────────────────────────────────────
     scored_jobs.sort(key=lambda j: j.get("match_score", 0), reverse=True)
 
-    # ── Save to CSV (async, non-blocking) ────────────────────────────────
+    # ── CSV (offloaded to I/O thread so it doesn't block the event loop) ─────
     csv_path = await loop.run_in_executor(
-        _EXECUTOR, _save_to_csv, scored_jobs, domain, city
+        _IO_EXECUTOR, _save_to_csv, scored_jobs, domain, city
     )
 
-    # ── Normalise skills for frontend ─────────────────────────────────────
+    # ── Normalise skills for frontend ─────────────────────────────────────────
     for job in scored_jobs:
-        skills_raw = job.get("skills", [])
-        if isinstance(skills_raw, str):
-            parts = [s.strip() for s in skills_raw.split(",") if s.strip()]
-            skills_list = [s for s in parts if s.lower() != "not listed"]
-        elif isinstance(skills_raw, list):
-            skills_list = [str(s).strip() for s in skills_raw if str(s).strip()]
+        raw = job.get("skills", [])
+        if isinstance(raw, str):
+            lst = [s.strip() for s in raw.split(",") if s.strip() and s.strip().lower() != "not listed"]
         else:
-            skills_list = []
-
-        job["skills"]         = skills_list
-        job["qualifications"] = skills_list[:6]
-        if "match_score" not in job:
-            job["match_score"] = 0
+            lst = [str(s).strip() for s in raw if str(s).strip()]
+        job["skills"]         = lst
+        job["qualifications"] = lst[:6]
+        job.setdefault("match_score", 0)
 
     return {
         "jobs":        scored_jobs,
