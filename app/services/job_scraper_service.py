@@ -474,20 +474,32 @@ async def aggregate_jobs(
     _up = user_profile or {}
     _rt = resume_text or ""
 
-    if any(_up.values()) if _up else False:
-        print(f"  🎯 Scoring {len(unique_jobs)} jobs using parallel CPU cores...")
-        _score_start = time.time()
+    # if any(_up.values()) if _up else False:
+    #     print(f"  🎯 Scoring {len(unique_jobs)} jobs using parallel CPU cores...")
+    #     _score_start = time.time()
         
-        # NOTE: ProcessPoolExecutor requires __main__ on Windows, safe on Render (Linux)
-        with ProcessPoolExecutor(max_workers=os.cpu_count() or 1) as process_executor:
-            scored_jobs = list(process_executor.map(
-                _score_job_wrapper, 
-                [(job, _up, _rt) for job in unique_jobs]
-            ))
-        print(f"  🎯 Scoring done in {time.time() - _score_start:.1f}s")
+    #     # NOTE: ProcessPoolExecutor requires __main__ on Windows, safe on Render (Linux)
+    #     with ProcessPoolExecutor(max_workers=os.cpu_count() or 1) as process_executor:
+    #         scored_jobs = list(process_executor.map(
+    #             _score_job_wrapper, 
+    #             [(job, _up, _rt) for job in unique_jobs]
+    #         ))
+    #     print(f"  🎯 Scoring done in {time.time() - _score_start:.1f}s")
+    # else:
+    #     scored_jobs = unique_jobs
+    if any(_up.values()) if _up else False:
+        print(f"  🎯 Scoring {len(unique_jobs)} jobs using standard loop...")
+        import time as _t
+        _score_start = _t.time()
+        
+        # Use a safe, standard loop that uses almost zero RAM
+        scored_jobs = []
+        for job in unique_jobs:
+            scored_jobs.append(_score_job(job, _up, _rt))
+            
+        print(f"  🎯 Scoring done in {_t.time() - _score_start:.2f}s")
     else:
         scored_jobs = unique_jobs
-
     # ── Sort by match_score descending ────────────────────────────────────
     scored_jobs.sort(key=lambda j: j.get("match_score", 0), reverse=True)
 
