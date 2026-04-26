@@ -157,7 +157,7 @@ if __name__ == "__main__":
 
             try:
                 print(f"  Scraping Internshala...")
-                internshala_jobs = scrape_internshala_fast(keyword, city, "3days")
+                internshala_jobs = scrape_internshala_fast(keyword, city, "3days",max_pages=5)
                 save_jobs_to_tidb(internshala_jobs, "Internshala", domain_tag)
                 total_saved += len(internshala_jobs)
             except Exception as e:
@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
             try:
                 print(f"  Scraping Indeed...")
-                indeed_jobs = scrape_indeed_fast(keyword, city, "3days")
+                indeed_jobs = scrape_indeed_fast(keyword, city, "3days",max_pages=5)
                 save_jobs_to_tidb(indeed_jobs, "Indeed", domain_tag)
                 total_saved += len(indeed_jobs)
             except Exception as e:

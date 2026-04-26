@@ -133,14 +133,19 @@ INDIAN_CITIES = {
 # FAST WRAPPER  (used by job_scraper_service.py aggregate pipeline)
 # ─────────────────────────────────────────────────────────────────
 
-def scrape_internshala_fast(keyword: str, city: str, date_filter: str = "month") -> list[dict]:
+# 1. Added max_pages and max_jobs here 👇
+def scrape_internshala_fast(keyword: str, city: str, date_filter: str = "month", max_pages: int = 5, max_jobs: int = 150) -> list[dict]:
     """
-    Paginated Internshala scraper: up to 3 pages, normalised output.
-    Card limit increased to 60 to contribute significantly to the 150-job goal.
+    Paginated Internshala scraper: up to max_pages, normalised output.
     Returns list of dicts matching the unified job schema.
     """
     import json as _json
+    import time
+    from bs4 import BeautifulSoup
+    import re
+    from concurrent.futures import ThreadPoolExecutor
 
+    # (Assuming INDIAN_CITIES and get_stealth_driver are defined above in your file)
     search_city = f"{city}, India" if city.lower().strip() in INDIAN_CITIES else city
 
     # Internshala uses /page-N suffix for pagination
@@ -150,13 +155,13 @@ def scrape_internshala_fast(keyword: str, city: str, date_filter: str = "month")
         f"location-{search_city.replace(' ', '-')}"
     )
 
-    # get_stealth_driver already uses --headless; confirmed here
     main_driver = get_stealth_driver()
     all_job_list: list[dict] = []
     jobs: list[dict] = []
 
     try:
-        for page_num in range(1, 4):  # pages 1, 2, 3
+        # 2. Replaced range(1, 4) with dynamic max_pages 👇
+        for page_num in range(1, max_pages + 1):  
             if page_num == 1:
                 page_url = base_search_url
             else:
@@ -206,16 +211,16 @@ def scrape_internshala_fast(keyword: str, city: str, date_filter: str = "month")
                 })
                 page_jobs += 1
 
-                # Cap total at 60 across all pages
-                if len(all_job_list) >= 60:
+                # 3. Replaced 60 with dynamic max_jobs 👇
+                if len(all_job_list) >= max_jobs:
                     break
 
             print(f"       Internshala page {page_num}: {page_jobs} cards | running total: {len(all_job_list)}")
 
-            if len(all_job_list) >= 60:
+            # 4. Replaced 60 with dynamic max_jobs 👇
+            if len(all_job_list) >= max_jobs:
                 break
 
-            # No page found (redirected back to page 1 or empty)
             if page_jobs == 0:
                 print(f"  ℹ️  Internshala: no cards on page {page_num} — stopping pagination")
                 break
@@ -225,15 +230,14 @@ def scrape_internshala_fast(keyword: str, city: str, date_filter: str = "month")
 
         print(f"  Internshala: {len(all_job_list)} cards collected before detail fetch")
 
-        # Parallel detail fetching for all collected jobs
         results = []
         if all_job_list:
             with ThreadPoolExecutor(max_workers=5) as executor:
+                # (Assuming fetch_job_details is defined in your file)
                 results = list(executor.map(fetch_job_details, all_job_list))
 
         print(f"  Internshala: {len(results)} detail pages fetched")
 
-        # Normalise to unified schema
         for d in results:
             jobs.append({
                 "source":          "Internshala",

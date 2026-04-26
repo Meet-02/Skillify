@@ -640,88 +640,93 @@ from bs4 import BeautifulSoup
 import urllib.parse
 from datetime import datetime, timezone
 
-def scrape_indeed_fast(keyword: str, city: str, date_filter: str) -> list[dict]:
-    print(f"Scraping Indeed via ZenRows for {keyword} in {city}...")
+# 1. Added max_pages=3 to the function arguments 👇
+def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "3days", max_pages: int = 3) -> list[dict]:
+    print(f"Scraping Indeed via ZenRows for {keyword} in {city} (Max Pages: {max_pages})...")
     
-    # 1. Build the target Indeed URL
     query = urllib.parse.quote_plus(keyword)
     location = urllib.parse.quote_plus(city)
-    target_url = f"https://in.indeed.com/jobs?q={query}&l={location}&fromage=3"
     
-    # 2. Get your ZenRows API Key from the environment
-    # (We are keeping the variable name SCRAPER_API_KEY so you don't have to change your GitHub Settings)
     api_key = os.getenv('SCRAPER_API_KEY')
     if not api_key:
         print("⚠️ No SCRAPER_API_KEY found! Skipping Indeed.")
         return []
 
-    # 3. ZenRows API Setup
     zenrows_endpoint = "https://api.zenrows.com/v1/"
-    params = {
-        "apikey": api_key,
-        "url": target_url,
-        "js_render": "true",      # Tells ZenRows to load React/JavaScript
-        "premium_proxy": "true"   # CRUCIAL: Tells ZenRows to use residential proxies to bypass Cloudflare
-    }
-    
-    try:
-        # Send the request to ZenRows
-        response = requests.get(zenrows_endpoint, params=params, timeout=60)
+    all_jobs = [] # Master list to hold jobs across all pages
+
+    # 2. Added the Pagination Loop 👇
+    for page in range(max_pages):
+        start_val = page * 10
+        print(f"  -> Fetching Indeed Page {page + 1} (start={start_val})...")
         
-        if response.status_code != 200:
-            print(f"⚠️ ZenRows API Error: {response.status_code} - {response.text}")
-            return []
+        # Build the dynamic URL for the specific page
+        target_url = f"https://in.indeed.com/jobs?q={query}&l={location}&fromage=3"
+        if start_val > 0:
+            target_url += f"&start={start_val}"
+
+        params = {
+            "apikey": api_key,
+            "url": target_url,
+            "js_render": "true",      # Tells ZenRows to load React/JavaScript
+            "premium_proxy": "true"   # CRUCIAL: Bypass Cloudflare
+        }
+        
+        try:
+            # Send the request to ZenRows
+            response = requests.get(zenrows_endpoint, params=params, timeout=60)
             
-        # 4. Parse the clean HTML returned by ZenRows
-        soup = BeautifulSoup(response.text, 'html.parser')
-        job_cards = soup.find_all('td', class_='resultContent')
-        
-        if not job_cards:
-            print("  ⚠️ Indeed: No job cards found. Cloudflare might have served a CAPTCHA anyway, or no jobs exist.")
-            return []
+            if response.status_code != 200:
+                print(f"⚠️ ZenRows API Error on Page {page + 1}: {response.status_code} - {response.text}")
+                break # Stop paginating if ZenRows throws an error
+                
+            soup = BeautifulSoup(response.text, 'html.parser')
+            job_cards = soup.find_all('td', class_='resultContent')
             
-        print(f"  ✅ Indeed: Found {len(job_cards)} job cards!")
-        
-        jobs = []
-        for card in job_cards:
-            try:
-                # Extract Title
-                title_elem = card.find('h2', class_='jobTitle')
-                title = title_elem.text.strip() if title_elem else "Unknown Title"
+            # 3. Stop looking if a page is empty 👇
+            if not job_cards:
+                print(f"  ℹ️ Indeed: No job cards found on page {page + 1}. Stopping pagination.")
+                break
                 
-                # Extract Company
-                company_elem = card.find('span', {'data-testid': 'company-name'})
-                company = company_elem.text.strip() if company_elem else "Unknown Company"
-                
-                # Extract Location
-                location_elem = card.find('div', {'data-testid': 'text-location'})
-                loc = location_elem.text.strip() if location_elem else city
-                
-                # Extract Link
-                link_elem = card.find('a')
-                apply_link = "https://in.indeed.com" + link_elem['href'] if link_elem and 'href' in link_elem.attrs else ""
-                
-                jobs.append({
-                    "source": "Indeed",
-                    "title": title,
-                    "employer": company,
-                    "location": loc,
-                    "salary": "Not disclosed",
-                    "apply_link": apply_link,
-                    "description": "",
-                    "skills": [],
-                    "employment_type": "Full Time",
-                    "posted_at": datetime.now(timezone.utc).isoformat(),
-                    "employer_logo": ""
-                })
-            except Exception as e:
-                continue
-                
-        return jobs
-        
-    except Exception as e:
-        print(f"⚠️ Indeed ZenRows Error: {e}")
-        return []
+            print(f"  ✅ Indeed Page {page + 1}: Found {len(job_cards)} job cards!")
+            
+            for card in job_cards:
+                try:
+                    title_elem = card.find('h2', class_='jobTitle')
+                    title = title_elem.text.strip() if title_elem else "Unknown Title"
+                    
+                    company_elem = card.find('span', {'data-testid': 'company-name'})
+                    company = company_elem.text.strip() if company_elem else "Unknown Company"
+                    
+                    location_elem = card.find('div', {'data-testid': 'text-location'})
+                    loc = location_elem.text.strip() if location_elem else city
+                    
+                    link_elem = card.find('a')
+                    apply_link = "https://in.indeed.com" + link_elem['href'] if link_elem and 'href' in link_elem.attrs else ""
+                    
+                    # Add to our master list
+                    all_jobs.append({
+                        "source": "Indeed",
+                        "title": title,
+                        "employer": company,
+                        "location": loc,
+                        "salary": "Not disclosed",
+                        "apply_link": apply_link,
+                        "description": "",
+                        "skills": [],
+                        "employment_type": "Full Time",
+                        "posted_at": datetime.now(timezone.utc).isoformat(),
+                        "employer_logo": ""
+                    })
+                except Exception as e:
+                    continue
+                    
+        except Exception as e:
+            print(f"⚠️ Indeed ZenRows Error on page {page + 1}: {e}")
+            break # Stop loop on network error
+            
+    print(f"  ✅ Indeed Total → {len(all_jobs)} jobs collected.")
+    return all_jobs
 
 
 
