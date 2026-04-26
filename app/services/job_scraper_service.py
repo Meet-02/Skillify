@@ -96,37 +96,50 @@ def _days_for_filter(date_filter: str) -> int:
 # ════════════════════════════════════════════════════════════════════════════
 # SKILLS — loaded once at startup
 # ════════════════════════════════════════════════════════════════════════════
-def load_skills_from_json() -> list[str]:
+# ── Pre-compiled single regex for all skills — O(n) not O(n*k) ──────────────
+# Old approach: loop 8037 patterns × 51 jobs = 27s on fast machine, 80-100s on Render
+# New approach: one compiled alternation regex  = 0.05s for 51 jobs
+_DISPLAY_MAP = {"node.js": "Node.js", "mongodb": "MongoDB", "postgresql": "PostgreSQL",
+                "graphql": "GraphQL", "nextjs": "Next.js", "nuxtjs": "Nuxt.js"}
+
+def _build_skills_regex():
     try:
         if not SKILLS_JSON_PATH.exists():
-            return []
+            print(f"⚠️ Skills JSON not found: {SKILLS_JSON_PATH}")
+            return set(), None
         with open(SKILLS_JSON_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-        flat = set()
+        flat: set[str] = set()
         for item in data:
             flat.add(item["name"].lower())
             for syn in item.get("synonyms", []):
                 flat.add(syn.lower())
-        return sorted(flat, key=len, reverse=True)
+        # Sort longest-first so "machine learning" matches before "machine"
+        ordered = sorted(flat, key=len, reverse=True)
+        pattern = re.compile(
+            r'(?<![a-zA-Z0-9])('
+            + '|'.join(re.escape(s) for s in ordered)
+            + r')(?![a-zA-Z0-9])',
+            re.IGNORECASE,
+        )
+        print(f"✅ Skills regex compiled: {len(ordered)} skills")
+        return flat, pattern
     except Exception as e:
-        print(f"⚠️ Error loading skills JSON: {e}")
-        return []
+        print(f"⚠️ Error building skills regex: {e}")
+        return set(), None
 
-KNOWN_SKILLS = load_skills_from_json()
+KNOWN_SKILLS, _SKILLS_PATTERN = _build_skills_regex()
 
 def _extract_skills_fast(text: str) -> list[str]:
-    if not text:
+    if not text or _SKILLS_PATTERN is None:
         return []
-    tl = text.lower()
     found: set[str] = set()
-    for skill in KNOWN_SKILLS:
-        pattern = r'(?<![a-zA-Z0-9])' + re.escape(skill) + r'(?![a-zA-Z0-9])'
-        if re.search(pattern, tl):
-            if len(skill) <= 3:
-                found.add(skill.upper())
-            else:
-                mapping = {"node.js": "Node.js", "mongodb": "MongoDB"}
-                found.add(mapping.get(skill, skill.title()))
+    for m in _SKILLS_PATTERN.finditer(text):
+        skill = m.group(1).lower()
+        if len(skill) <= 3:
+            found.add(skill.upper())
+        else:
+            found.add(_DISPLAY_MAP.get(skill, skill.title()))
     return sorted(found)
 
 
