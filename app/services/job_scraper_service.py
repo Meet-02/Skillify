@@ -399,11 +399,15 @@ async def aggregate_jobs(
     loop   = asyncio.get_event_loop()
 
     # ── Launch I/O sources concurrently ──────────────────────────────────────
+# 1. Determine the exact limit based on the date_filter! 👇
+    target_limit = 90 if date_filter == "3days" else 150
+    
+    # ── PREPARE TASKS ──────────────────────────────────────────────────────
     tasks = []
+
     if "database" in sources:
-        tasks.append(("database", loop.run_in_executor(
-            _IO_EXECUTOR, _fetch_jobs_from_db, domain_clean, city, date_filter
-        )))
+        # 2. Pass the target_limit into the database fetcher 👇
+        tasks.append(loop.run_in_executor(_EXECUTOR, _fetch_jobs_from_db, domain_clean, city, target_limit))
     if "internshala" in sources:
         from app.services.internshala_scraper import scrape_internshala_fast
         tasks.append(("internshala", loop.run_in_executor(
@@ -500,9 +504,13 @@ async def aggregate_jobs(
     else:
         scored_jobs = unique_jobs
 
+    # ── Sort by match_score descending ────────────────────────────────────
     scored_jobs.sort(key=lambda j: j.get("match_score", 0), reverse=True)
 
-    # ── CSV (offloaded to I/O thread so it doesn't block the event loop) ─────
+    # ✂️ ENFORCE THE ABSOLUTE LIMIT BEFORE SAVING/SENDING TO FRONTEND 
+    scored_jobs = scored_jobs[:target_limit]
+
+    # ── Save to CSV ──────────────────────────────────────────────────────
     csv_path = await loop.run_in_executor(
         _IO_EXECUTOR, _save_to_csv, scored_jobs, domain, city
     )
