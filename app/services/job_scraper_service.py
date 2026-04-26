@@ -407,7 +407,7 @@ async def aggregate_jobs(
 
     if "database" in sources:
         # 2. Pass the target_limit into the database fetcher 👇
-        tasks.append(loop.run_in_executor(_EXECUTOR, _fetch_jobs_from_db, domain_clean, city, target_limit))
+        tasks.append(loop.run_in_executor(_IO_EXECUTOR, _fetch_jobs_from_db, domain_clean, city, target_limit))
     if "internshala" in sources:
         from app.services.internshala_scraper import scrape_internshala_fast
         tasks.append(("internshala", loop.run_in_executor(
@@ -504,7 +504,7 @@ async def aggregate_jobs(
     else:
         scored_jobs = unique_jobs
 
-    # ── Sort by match_score descending ────────────────────────────────────
+# ── Sort by match_score descending ────────────────────────────────────
     scored_jobs.sort(key=lambda j: j.get("match_score", 0), reverse=True)
 
     # ✂️ ENFORCE THE ABSOLUTE LIMIT BEFORE SAVING/SENDING TO FRONTEND 
