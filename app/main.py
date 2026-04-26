@@ -626,14 +626,22 @@ async def get_internships(
     import time as _time
     _t0 = _time.time()
 
-    result = await aggregate_jobs(
-        domain       = domain,
-        city         = city,
-        user_profile = user_profile_struct,
-        resume_text  = resume_text,
-        sources      = ["internshala", "indeed", "jsearch"],
-        date_filter  = date_filter,
-    )
+    try:
+        # Do NOT pass sources= — aggregate_jobs() auto-detects from RENDER env var.
+        # Hardcoding ["internshala","indeed","jsearch"] was bypassing the
+        # production guard and triggering Selenium/Chrome on Render → crash.
+        result = await aggregate_jobs(
+            domain       = domain,
+            city         = city,
+            user_profile = user_profile_struct,
+            resume_text  = resume_text,
+            date_filter  = date_filter,
+        )
+    except Exception as exc:
+        import traceback
+        print(f"\n❌ aggregate_jobs() CRASHED:\n{traceback.format_exc()}")
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"error": str(exc), "jobs": [], "total": 0})
 
     _elapsed = _time.time() - _t0
     print(f"  ✅ aggregate_jobs() returned in {_elapsed:.1f}s — {result.get('total', 0)} jobs")
