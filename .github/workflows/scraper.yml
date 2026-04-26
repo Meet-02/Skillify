@@ -1,35 +1,91 @@
 name: Background Scrapers
+ 
 on:
   schedule:
-    - cron: '0 */12 * * *' # Runs every 12 hours
-  workflow_dispatch: # Allows you to trigger it manually
-
+    - cron: '0 */12 * * *'   # Every 12 hours
+  workflow_dispatch:           # Manual trigger
+ 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 60        # Prevent runaway jobs eating your Actions minutes
+ 
     steps:
       - uses: actions/checkout@v4
-      
+ 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
-      - name: Install Chrome & Xvfb (Fake Screen)
+ 
+      # ── Internshala uses Selenium → Chrome needed ──────────────────────────
+      # Indeed uses ZenRows (HTTP only) → Chrome NOT needed for that scraper,
+      # but we still install it here for Internshala's get_stealth_driver().
+      - name: Install Chrome & Xvfb
         run: |
-          sudo apt-get update
+          sudo apt-get update -qq
           sudo apt-get install -y google-chrome-stable xvfb
-          
+ 
+      # Cache pip dependencies so repeat runs are faster
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+ 
       - name: Install Dependencies
-        run: pip install --ignore-installed PyYAML -r requirements.txt selenium undetected-chromedriver webdriver-manager fake-useragent pymysql beautifulsoup4 pandas
-        
-      - name: Run Scrapers inside Fake Screen
+        run: |
+          pip install --ignore-installed PyYAML -r requirements.txt
+          pip install selenium undetected-chromedriver webdriver-manager \
+                      fake-useragent pymysql beautifulsoup4 pandas requests
+ 
+      # ── Run scrapers ────────────────────────────────────────────────────────
+      # xvfb-run gives Selenium a virtual screen (headless Chrome needs it on Ubuntu)
+      # OMP_NUM_THREADS=1 keeps numpy single-threaded here too (avoids CI slowness)
+      - name: Run Scrapers
+        env:
+          TIDB_HOST:       ${{ secrets.TIDB_HOST }}
+          TIDB_USER:       ${{ secrets.TIDB_USER }}
+          TIDB_PASS:       ${{ secrets.TIDB_PASS }}
+          TIDB_NAME:       ${{ secrets.TIDB_NAME }}
+          TIDB_PORT:       4000
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}   # ZenRows key for Indeed
+          OMP_NUM_THREADS:      1
+          OPENBLAS_NUM_THREADS: 1
+          MKL_NUM_THREADS:      1
+        run: |
+          xvfb-run --auto-servernum \
+            --server-args="-screen 0 1920x1080x24" \
+            python run_background_scraper.py
+ 
+      # ── Optional: see how many jobs landed in the DB after each run ─────────
+      - name: Report job counts
+        if: always()
         env:
           TIDB_HOST: ${{ secrets.TIDB_HOST }}
           TIDB_USER: ${{ secrets.TIDB_USER }}
           TIDB_PASS: ${{ secrets.TIDB_PASS }}
           TIDB_NAME: ${{ secrets.TIDB_NAME }}
-          TIDB_PORT: 4000
-          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
-        # Notice the 'xvfb-run' command here!
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python run_background_scraper.py
+        run: |
+          python - <<'EOF'
+          import os, pymysql
+          conn = pymysql.connect(
+              host=os.getenv("TIDB_HOST"), user=os.getenv("TIDB_USER"),
+              password=os.getenv("TIDB_PASS"), database=os.getenv("TIDB_NAME"),
+              port=4000, ssl={"ssl_mode": "PREFERRED"},
+          )
+          with conn.cursor() as cur:
+              cur.execute("""
+                  SELECT domain, COUNT(*) AS total,
+                         SUM(scraped_at >= NOW() - INTERVAL 3 DAY) AS last_3d
+                  FROM jobs GROUP BY domain ORDER BY total DESC
+              """)
+              rows = cur.fetchall()
+          conn.close()
+          print(f"\n{'Domain':<15} {'Total':>7} {'Last 3d':>8}")
+          print("-" * 33)
+          for domain, total, last3 in rows:
+              print(f"{domain or '(none)':<15} {total:>7} {last3 or 0:>8}")
+          EOF
+ 
