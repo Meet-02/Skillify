@@ -81,3 +81,15 @@ CREATE TABLE IF NOT EXISTS jobs (
     INDEX idx_domain_scraped (domain, scraped_at),
     INDEX idx_location       (location(100))
 );
+
+
+-- ── ONE-TIME CLEANUP: remove duplicate jobs keeping only the freshest row ────
+-- Run this once manually on your live TiDB to clear existing dirty data.
+-- After this, run_background_scraper.py's new logic prevents re-accumulation.
+--
+-- DELETE j1 FROM jobs j1
+-- INNER JOIN jobs j2
+--   ON  LOWER(j1.title)   = LOWER(j2.title)
+--   AND LOWER(j1.company) = LOWER(j2.company)
+--   AND j1.domain         = j2.domain
+--   AND j1.scraped_at     < j2.scraped_at;

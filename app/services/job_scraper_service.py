@@ -161,9 +161,17 @@ def _fetch_jobs_from_db(domain: str, city: str, date_filter: str = "month") -> l
             connect_timeout=10,
         )
         with conn.cursor() as cur:
+            # GROUP BY title+company so duplicate rows from URL-slug changes
+            # are collapsed at the DB level — returns only the freshest row per job.
             cur.execute("""
-                SELECT source, title, company AS employer, location,
-                       link AS apply_link, skills, domain, scraped_at
+                SELECT source,
+                       title,
+                       company AS employer,
+                       location,
+                       link    AS apply_link,
+                       skills,
+                       domain,
+                       MAX(scraped_at) AS scraped_at
                 FROM jobs
                 WHERE domain = %s
                   AND (
@@ -172,6 +180,7 @@ def _fetch_jobs_from_db(domain: str, city: str, date_filter: str = "month") -> l
                      OR LOWER(location) LIKE '%%remote%%'
                   )
                   AND scraped_at >= %s
+                GROUP BY title, company, location, source, skills, domain, link
                 ORDER BY scraped_at DESC
                 LIMIT 300
             """, (domain, f"%{city.lower()}%", cutoff))

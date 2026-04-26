@@ -100,23 +100,41 @@ def save_jobs_to_tidb(jobs: list, source: str, domain_tag: str):
         for job in jobs:
             skills_str = ", ".join(job.get('skills', []))
             try:
+                title_val   = job.get('title', '').strip()
+                company_val = job.get('employer', '').strip()
+                link_val    = job.get('apply_link', '').strip()
+
+                # Dedup strategy: if same title+company+domain already exists
+                # (possibly with a different URL slug), update it instead of inserting.
                 cursor.execute("""
-                    INSERT INTO jobs (source, title, company, location, link, skills, domain, scraped_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                        skills     = VALUES(skills),
-                        domain     = VALUES(domain),
-                        scraped_at = VALUES(scraped_at)
-                """, (
-                    job.get('source', source),
-                    job.get('title', ''),
-                    job.get('employer', ''),
-                    job.get('location', ''),
-                    job.get('apply_link', ''),
-                    skills_str,
-                    domain_tag,
-                    now,
-                ))
+                    SELECT id FROM jobs
+                    WHERE LOWER(title) = LOWER(%s)
+                      AND LOWER(company) = LOWER(%s)
+                      AND domain = %s
+                    LIMIT 1
+                """, (title_val, company_val, domain_tag))
+                existing = cursor.fetchone()
+
+                if existing:
+                    # Update scraped_at + skills so it stays fresh in date_filter queries
+                    cursor.execute("""
+                        UPDATE jobs SET scraped_at = %s, skills = %s, link = %s
+                        WHERE id = %s
+                    """, (now, skills_str, link_val or existing[0], existing[0]))
+                else:
+                    cursor.execute("""
+                        INSERT IGNORE INTO jobs
+                            (source, title, company, location, link, skills, domain, scraped_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        job.get('source', source),
+                        title_val, company_val,
+                        job.get('location', ''),
+                        link_val,
+                        skills_str,
+                        domain_tag,
+                        now,
+                    ))
                 saved += 1
             except Exception as e:
                 print(f"  ⚠️  Insert error: {e}")
