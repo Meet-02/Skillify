@@ -30,4 +30,4 @@ ENV NUMEXPR_NUM_THREADS=1
 # --timeout 120  : give scoring + DB fetch up to 2 min before Gunicorn kills the worker
 # --keep-alive 5 : sensible keepalive for Render's load balancer
 # -w 1           : single worker — Render free tier has ~512MB RAM, more workers = OOM
-CMD ["gunicorn", "-c", "/app/gunicorn.conf.py", "app.main:app"]
+CMD ["sh", "-c", "gunicorn -w 1 -k uvicorn.workers.UvicornWorker --timeout 120 --keep-alive 5 app.main:app --bind 0.0.0.0:${PORT:-10000}"]
