@@ -454,15 +454,38 @@ async def aggregate_jobs(
         combined = scraper_jobs
 
     # ── Dedup by apply_link ───────────────────────────────────────────────────
+    # ── NUCLEAR Deduplication (Link OR Title+Employer) ────────────────────────
     seen_links: set[str] = set()
+    seen_signatures: set[str] = set()
     unique_jobs: list[dict] = []
+    
     for job in combined:
         link = job.get("apply_link", "")
-        if link and link not in seen_links:
-            seen_links.add(link)
+        
+        # 1. Grab raw strings and make them lowercase
+        raw_title = job.get("title", "").lower()
+        raw_employer = job.get("employer", "").lower()
+        
+        # 2. REGEX: Strip out absolutely everything except letters and numbers!
+        # This kills hidden spaces, \xa0, commas, dashes, and typos.
+        clean_title = re.sub(r'[^a-z0-9]', '', raw_title)
+        clean_employer = re.sub(r'[^a-z0-9]', '', raw_employer)
+        
+        # 3. Create the unbreakable signature
+        signature = f"{clean_title}|{clean_employer}"
+        
+        # 4. Check if we've seen this link OR this precise combo
+        is_duplicate_link = bool(link and link in seen_links)
+        
+        # Only check signature if both title and employer actually exist
+        is_duplicate_sig = bool(clean_title and clean_employer and signature in seen_signatures)
+        
+        if not is_duplicate_link and not is_duplicate_sig:
+            if link:
+                seen_links.add(link)
+            seen_signatures.add(signature)
             unique_jobs.append(job)
-        elif not link:
-            unique_jobs.append(job)
+
     print(f"  🔗 After dedup: {len(unique_jobs)} jobs")
 
     # ── SCORING — runs synchronously in the event loop, NO thread pool ────────
