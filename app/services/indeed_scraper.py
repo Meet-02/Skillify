@@ -634,99 +634,217 @@
 #     else:
 #         print("\n❌ No jobs collected.")
 
+# import os
+# import requests
+# from bs4 import BeautifulSoup
+# import urllib.parse
+# from datetime import datetime, timezone
+
+# # 1. Added max_pages=3 to the function arguments 👇
+# def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "3days", max_pages: int = 3) -> list[dict]:
+#     print(f"Scraping Indeed via ZenRows for {keyword} in {city} (Max Pages: {max_pages})...")
+    
+#     query = urllib.parse.quote_plus(keyword)
+#     location = urllib.parse.quote_plus(city)
+    
+#     api_key = os.getenv('SCRAPER_API_KEY')
+#     if not api_key:
+#         print("⚠️ No SCRAPER_API_KEY found! Skipping Indeed.")
+#         return []
+
+#     zenrows_endpoint = "https://api.zenrows.com/v1/"
+#     all_jobs = [] # Master list to hold jobs across all pages
+
+#     # 2. Added the Pagination Loop 👇
+#     for page in range(max_pages):
+#         start_val = page * 10
+#         print(f"  -> Fetching Indeed Page {page + 1} (start={start_val})...")
+        
+#         # Build the dynamic URL for the specific page
+#         target_url = f"https://in.indeed.com/jobs?q={query}&l={location}&fromage=3"
+#         if start_val > 0:
+#             target_url += f"&start={start_val}"
+
+#         params = {
+#             "apikey": api_key,
+#             "url": target_url,
+#             "js_render": "true",      # Tells ZenRows to load React/JavaScript
+#             "premium_proxy": "true"   # CRUCIAL: Bypass Cloudflare
+#         }
+        
+#         try:
+#             # Send the request to ZenRows
+#             response = requests.get(zenrows_endpoint, params=params, timeout=60)
+            
+#             if response.status_code != 200:
+#                 print(f"⚠️ ZenRows API Error on Page {page + 1}: {response.status_code} - {response.text}")
+#                 break # Stop paginating if ZenRows throws an error
+                
+#             soup = BeautifulSoup(response.text, 'html.parser')
+#             job_cards = soup.find_all('td', class_='resultContent')
+            
+#             # 3. Stop looking if a page is empty 👇
+#             if not job_cards:
+#                 print(f"  ℹ️ Indeed: No job cards found on page {page + 1}. Stopping pagination.")
+#                 break
+                
+#             print(f"  ✅ Indeed Page {page + 1}: Found {len(job_cards)} job cards!")
+            
+#             for card in job_cards:
+#                 try:
+#                     title_elem = card.find('h2', class_='jobTitle')
+#                     title = title_elem.text.strip() if title_elem else "Unknown Title"
+                    
+#                     company_elem = card.find('span', {'data-testid': 'company-name'})
+#                     company = company_elem.text.strip() if company_elem else "Unknown Company"
+                    
+#                     location_elem = card.find('div', {'data-testid': 'text-location'})
+#                     loc = location_elem.text.strip() if location_elem else city
+                    
+#                     link_elem = card.find('a')
+#                     apply_link = "https://in.indeed.com" + link_elem['href'] if link_elem and 'href' in link_elem.attrs else ""
+                    
+#                     # Add to our master list
+#                     all_jobs.append({
+#                         "source": "Indeed",
+#                         "title": title,
+#                         "employer": company,
+#                         "location": loc,
+#                         "salary": "Not disclosed",
+#                         "apply_link": apply_link,
+#                         "description": "",
+#                         "skills": [],
+#                         "employment_type": "Full Time",
+#                         "posted_at": datetime.now(timezone.utc).isoformat(),
+#                         "employer_logo": ""
+#                     })
+#                 except Exception as e:
+#                     continue
+                    
+#         except Exception as e:
+#             print(f"⚠️ Indeed ZenRows Error on page {page + 1}: {e}")
+#             break # Stop loop on network error
+            
+#     print(f"  ✅ Indeed Total → {len(all_jobs)} jobs collected.")
+#     return all_jobs
+
+
 import os
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
 from datetime import datetime, timezone
 
-# 1. Added max_pages=3 to the function arguments 👇
-def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "3days", max_pages: int = 3) -> list[dict]:
+# 1. We keep a global index so the script remembers which key is currently active!
+CURRENT_KEY_IDX = 0
+
+def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "3days", max_pages: int = 1) -> list[dict]:
+    global CURRENT_KEY_IDX
     print(f"Scraping Indeed via ZenRows for {keyword} in {city} (Max Pages: {max_pages})...")
     
     query = urllib.parse.quote_plus(keyword)
     location = urllib.parse.quote_plus(city)
     
-    api_key = os.getenv('SCRAPER_API_KEY')
-    if not api_key:
-        print("⚠️ No SCRAPER_API_KEY found! Skipping Indeed.")
+    # 2. Load the list of keys from the .env file
+    keys_str = os.getenv('ZENROWS_KEYS')
+    if not keys_str:
+        print("⚠️ No ZENROWS_KEYS found in .env! Skipping Indeed.")
         return []
 
+    # Split the string into a clean list of keys
+    zenrows_keys = [k.strip() for k in keys_str.split(',') if k.strip()]
     zenrows_endpoint = "https://api.zenrows.com/v1/"
-    all_jobs = [] # Master list to hold jobs across all pages
+    all_jobs = []
 
-    # 2. Added the Pagination Loop 👇
     for page in range(max_pages):
         start_val = page * 10
         print(f"  -> Fetching Indeed Page {page + 1} (start={start_val})...")
         
-        # Build the dynamic URL for the specific page
         target_url = f"https://in.indeed.com/jobs?q={query}&l={location}&fromage=3"
         if start_val > 0:
             target_url += f"&start={start_val}"
 
-        params = {
-            "apikey": api_key,
-            "url": target_url,
-            "js_render": "true",      # Tells ZenRows to load React/JavaScript
-            "premium_proxy": "true"   # CRUCIAL: Bypass Cloudflare
-        }
-        
-        try:
-            # Send the request to ZenRows
-            response = requests.get(zenrows_endpoint, params=params, timeout=60)
+        page_success = False
+
+        # 3. The API Rotation Retry Loop 👇
+        # If a key fails, it tries the next one. It will try up to the number of keys you have.
+        for attempt in range(len(zenrows_keys)):
+            current_key = zenrows_keys[CURRENT_KEY_IDX]
+
+            params = {
+                "apikey": current_key,
+                "url": target_url,
+                "js_render": "true",
+                "premium_proxy": "true" 
+            }
             
-            if response.status_code != 200:
-                print(f"⚠️ ZenRows API Error on Page {page + 1}: {response.status_code} - {response.text}")
-                break # Stop paginating if ZenRows throws an error
+            try:
+                response = requests.get(zenrows_endpoint, params=params, timeout=60)
                 
-            soup = BeautifulSoup(response.text, 'html.parser')
-            job_cards = soup.find_all('td', class_='resultContent')
-            
-            # 3. Stop looking if a page is empty 👇
-            if not job_cards:
-                print(f"  ℹ️ Indeed: No job cards found on page {page + 1}. Stopping pagination.")
+                # Success! The key is working.
+                if response.status_code == 200:
+                    page_success = True
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    job_cards = soup.find_all('td', class_='resultContent')
+                    
+                    if not job_cards:
+                        print(f"  ℹ️ Indeed: No job cards found on page {page + 1}. Stopping pagination.")
+                        return all_jobs # Stop pagination completely
+                        
+                    print(f"  ✅ Indeed Page {page + 1}: Found {len(job_cards)} job cards!")
+                    
+                    for card in job_cards:
+                        try:
+                            title_elem = card.find('h2', class_='jobTitle')
+                            title = title_elem.text.strip() if title_elem else "Unknown Title"
+                            
+                            company_elem = card.find('span', {'data-testid': 'company-name'})
+                            company = company_elem.text.strip() if company_elem else "Unknown Company"
+                            
+                            location_elem = card.find('div', {'data-testid': 'text-location'})
+                            loc = location_elem.text.strip() if location_elem else city
+                            
+                            link_elem = card.find('a')
+                            apply_link = "https://in.indeed.com" + link_elem['href'] if link_elem and 'href' in link_elem.attrs else ""
+                            
+                            all_jobs.append({
+                                "source": "Indeed",
+                                "title": title,
+                                "employer": company,
+                                "location": loc,
+                                "salary": "Not disclosed",
+                                "apply_link": apply_link,
+                                "description": "",
+                                "skills": [],
+                                "employment_type": "Full Time",
+                                "posted_at": datetime.now(timezone.utc).isoformat(),
+                                "employer_logo": ""
+                            })
+                        except Exception as e:
+                            continue
+                            
+                    # Break out of the retry loop because we successfully got the data!
+                    break 
+
+                # 4. Limit Reached! (ZenRows throws 402, 403, or 429 when credits are out)
+                elif response.status_code in [402, 403, 429]:
+                    print(f"  ⚠️ Key {CURRENT_KEY_IDX + 1} exhausted/blocked (Status {response.status_code}). Switching to next key...")
+                    # Shift to the next key index
+                    CURRENT_KEY_IDX = (CURRENT_KEY_IDX + 1) % len(zenrows_keys)
+                    continue # Try the exact same page again with the new key!
+                    
+                # A standard error (like 404 Not Found), don't bother retrying
+                else:
+                    print(f"  ⚠️ Indeed ZenRows Error: {response.status_code} - {response.text}")
+                    break 
+                    
+            except Exception as e:
+                print(f"  ⚠️ Indeed Network Error: {e}")
                 break
-                
-            print(f"  ✅ Indeed Page {page + 1}: Found {len(job_cards)} job cards!")
+        
+        # If we looped through all our keys and still didn't succeed, we are fully out of credits.
+        if not page_success:
+            print("  ❌ All 7 ZenRows keys are exhausted! Stopping Indeed scraper.")
+            break 
             
-            for card in job_cards:
-                try:
-                    title_elem = card.find('h2', class_='jobTitle')
-                    title = title_elem.text.strip() if title_elem else "Unknown Title"
-                    
-                    company_elem = card.find('span', {'data-testid': 'company-name'})
-                    company = company_elem.text.strip() if company_elem else "Unknown Company"
-                    
-                    location_elem = card.find('div', {'data-testid': 'text-location'})
-                    loc = location_elem.text.strip() if location_elem else city
-                    
-                    link_elem = card.find('a')
-                    apply_link = "https://in.indeed.com" + link_elem['href'] if link_elem and 'href' in link_elem.attrs else ""
-                    
-                    # Add to our master list
-                    all_jobs.append({
-                        "source": "Indeed",
-                        "title": title,
-                        "employer": company,
-                        "location": loc,
-                        "salary": "Not disclosed",
-                        "apply_link": apply_link,
-                        "description": "",
-                        "skills": [],
-                        "employment_type": "Full Time",
-                        "posted_at": datetime.now(timezone.utc).isoformat(),
-                        "employer_logo": ""
-                    })
-                except Exception as e:
-                    continue
-                    
-        except Exception as e:
-            print(f"⚠️ Indeed ZenRows Error on page {page + 1}: {e}")
-            break # Stop loop on network error
-            
-    print(f"  ✅ Indeed Total → {len(all_jobs)} jobs collected.")
     return all_jobs
-
-
-
