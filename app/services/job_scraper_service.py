@@ -406,8 +406,8 @@ async def aggregate_jobs(
     tasks = []
 
     if "database" in sources:
-        # 2. Pass the target_limit into the database fetcher 👇
-        tasks.append(loop.run_in_executor(_IO_EXECUTOR, _fetch_jobs_from_db, domain_clean, city, target_limit))
+        # Fixed: Added the ("database", ...) tuple AND passed date_filter instead of target_limit!
+        tasks.append(("database", loop.run_in_executor(_IO_EXECUTOR, _fetch_jobs_from_db, domain_clean, city, date_filter)))
     if "internshala" in sources:
         from app.services.internshala_scraper import scrape_internshala_fast
         tasks.append(("internshala", loop.run_in_executor(
