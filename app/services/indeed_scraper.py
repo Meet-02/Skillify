@@ -779,9 +779,9 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "3days", max_
             }
             
             try:
-                response = requests.get(zenrows_endpoint, params=params, timeout=60)
+                # 1. Increased timeout to 120 seconds for heavy JS rendering
+                response = requests.get(zenrows_endpoint, params=params, timeout=120)
                 
-                # Success! The key is working.
                 if response.status_code == 200:
                     page_success = True
                     soup = BeautifulSoup(response.text, 'html.parser')
@@ -789,7 +789,7 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "3days", max_
                     
                     if not job_cards:
                         print(f"  ℹ️ Indeed: No job cards found on page {page + 1}. Stopping pagination.")
-                        return all_jobs # Stop pagination completely
+                        return all_jobs
                         
                     print(f"  ✅ Indeed Page {page + 1}: Found {len(job_cards)} job cards!")
                     
@@ -823,24 +823,25 @@ def scrape_indeed_fast(keyword: str, city: str, date_filter: str = "3days", max_
                         except Exception as e:
                             continue
                             
-                    # Break out of the retry loop because we successfully got the data!
                     break 
 
-                # 4. Limit Reached! (ZenRows throws 402, 403, or 429 when credits are out)
                 elif response.status_code in [402, 403, 429]:
                     print(f"  ⚠️ Key {CURRENT_KEY_IDX + 1} exhausted/blocked (Status {response.status_code}). Switching to next key...")
-                    # Shift to the next key index
                     CURRENT_KEY_IDX = (CURRENT_KEY_IDX + 1) % len(zenrows_keys)
-                    continue # Try the exact same page again with the new key!
+                    continue 
                     
-                # A standard error (like 404 Not Found), don't bother retrying
                 else:
                     print(f"  ⚠️ Indeed ZenRows Error: {response.status_code} - {response.text}")
-                    break 
+                    # 2. Don't break here either! Switch keys and try again just in case!
+                    CURRENT_KEY_IDX = (CURRENT_KEY_IDX + 1) % len(zenrows_keys)
+                    continue 
                     
             except Exception as e:
-                print(f"  ⚠️ Indeed Network Error: {e}")
-                break
+                # 3. FIXED LOGIC: On timeout/network error, switch keys and continue!
+                print(f"  ⚠️ Indeed Network Error (Timeout): {e}")
+                print(f"  🔄 Switching from Key {CURRENT_KEY_IDX + 1} to next key and retrying...")
+                CURRENT_KEY_IDX = (CURRENT_KEY_IDX + 1) % len(zenrows_keys)
+                continue
         
         # If we looped through all our keys and still didn't succeed, we are fully out of credits.
         if not page_success:

@@ -25,20 +25,14 @@ JOB_TARGETS = {
     "Frontend Developer":    "frontend",
     "Backend Developer":     "backend",
     "Full Stack Developer":  "fullstack",
-    "Software Engineer":     "software",
     "Data Science":          "data",
-    "Machine Learning":      "ml",
     "Android Developer":     "android",
-    "iOS Developer":         "ios",
-    "DevOps":                "devops",
-    "Cybersecurity":         "cyber",
     "Marketing":             "marketing",
-    "Content Writer":        "content",
     "Graphic Designer":      "design",
 }
 
 # Cities to scrape for each domain
-CITIES = ["Mumbai", "Bangalore", "Delhi", "Pune", "Hyderabad", "Chennai"]
+CITIES = ["Mumbai", "Delhi", "Pune"]
 
 
 def get_connection():
