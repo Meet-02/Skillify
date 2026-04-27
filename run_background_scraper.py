@@ -7,11 +7,13 @@ FIXES:
   1. Expanded to ALL domains (not just frontend + data).
   2. Expanded to multiple cities so DB has broad coverage.
   3. scraped_at is now set on every INSERT so date_filter works in production.
+  4. Added JSearch API integration.
 ────────────────────────────────────────────────────────────────────────────────
 """
 
 import os
 import pymysql
+import requests
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from app.services.internshala_scraper import scrape_internshala_fast
@@ -149,6 +151,67 @@ def save_jobs_to_tidb(jobs: list, source: str, domain_tag: str):
     print(f"  ✅ Saved/updated {saved} {source} jobs for domain={domain_tag!r}.")
 
 
+# ── Added Synchronous JSearch Scraper ──────────────────────────────────────────
+def scrape_jsearch_fast(keyword: str, city: str, date_filter: str = "3days", max_pages: int = 1) -> list[dict]:
+    api_key = os.getenv("JSEARCH_API_KEY")
+    if not api_key:
+        print("  ⚠️ JSEARCH_API_KEY not found in .env! Skipping JSearch.")
+        return []
+
+    print(f"Scraping JSearch for {keyword} in {city} (Max Pages: {max_pages})...")
+    url = "https://jsearch.p.rapidapi.com/search"
+    headers = {
+        "x-rapidapi-key": api_key,
+        "x-rapidapi-host": "jsearch.p.rapidapi.com"
+    }
+
+    # Format query for JSearch
+    query = f"{keyword} in {city}"
+    
+    # Map '3days' to RapidAPI's expected string
+    date_map = {"3days": "3days", "week": "week", "month": "month"}
+    date_posted = date_map.get(date_filter.lower().strip(), "month")
+
+    querystring = {
+        "query": query,
+        "page": "1",
+        "num_pages": str(max_pages),
+        "date_posted": date_posted
+    }
+
+    jobs = []
+    try:
+        response = requests.get(url, headers=headers, params=querystring, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json().get("data", [])
+            for job in data:
+                # Discard jobs with no link to match our strict DB limits
+                link = job.get("job_apply_link", "")
+                if not link:
+                    continue
+                    
+                jobs.append({
+                    "source": "JSearch",
+                    "title": job.get("job_title", ""),
+                    "employer": job.get("employer_name", ""),
+                    "location": job.get("job_city") or city,
+                    "apply_link": link,
+                    "skills": [], # We let the DB matcher handle skills via text blob usually
+                })
+            print(f"  ✅ JSearch: Found {len(jobs)} jobs!")
+            
+        elif response.status_code == 429:
+            print("  ❌ JSearch Error 429: Monthly RapidAPI quota exhausted!")
+        else:
+            print(f"  ⚠️ JSearch API Error: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"  ⚠️ JSearch Network Error: {e}")
+
+    return jobs
+
+
 if __name__ == "__main__":
     print("🚀 Starting Background Scrapers...")
     print(f"   Domains : {len(JOB_TARGETS)}")
@@ -175,5 +238,13 @@ if __name__ == "__main__":
                 total_saved += len(indeed_jobs)
             except Exception as e:
                 print(f"  ❌ Indeed error: {e}")
+                
+            try:
+                print(f"  Scraping JSearch...")
+                jsearch_jobs = scrape_jsearch_fast(keyword, city, "3days", max_pages=1)
+                save_jobs_to_tidb(jsearch_jobs, "JSearch", domain_tag)
+                total_saved += len(jsearch_jobs)
+            except Exception as e:
+                print(f"  ❌ JSearch error: {e}")
 
     print(f"\n🎉 Background scraping complete! ~{total_saved} jobs processed.")
