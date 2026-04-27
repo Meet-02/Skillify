@@ -7,13 +7,12 @@ FIXES:
   1. Expanded to ALL domains (not just frontend + data).
   2. Expanded to multiple cities so DB has broad coverage.
   3. scraped_at is now set on every INSERT so date_filter works in production.
-  4. Added JSearch API integration.
 ────────────────────────────────────────────────────────────────────────────────
 """
 
 import os
 import pymysql
-import requests
+import requests  # <-- ADDED for JSearch
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from app.services.internshala_scraper import scrape_internshala_fast
@@ -24,17 +23,12 @@ load_dotenv()
 # ── All domains to scrape ──────────────────────────────────────────────────────
 # Add / remove entries freely. Key = search keyword, value = DB domain tag.
 JOB_TARGETS = {
-    "Frontend Developer":    "frontend",
     "Backend Developer":     "backend",
-    "Full Stack Developer":  "fullstack",
-    "Data Science":          "data",
-    "Android Developer":     "android",
-    "Marketing":             "marketing",
-    "Graphic Designer":      "design",
+    "Data Science":          "data",    
 }
 
 # Cities to scrape for each domain
-CITIES = ["Mumbai", "Delhi", "Pune"]
+CITIES = ["Mumbai"]
 
 
 def get_connection():
@@ -151,14 +145,14 @@ def save_jobs_to_tidb(jobs: list, source: str, domain_tag: str):
     print(f"  ✅ Saved/updated {saved} {source} jobs for domain={domain_tag!r}.")
 
 
-# ── Added Synchronous JSearch Scraper ──────────────────────────────────────────
+# ── ADDED: Synchronous JSearch Scraper ─────────────────────────────────────────
 def scrape_jsearch_fast(keyword: str, city: str, date_filter: str = "3days", max_pages: int = 1) -> list[dict]:
     api_key = os.getenv("JSEARCH_API_KEY")
     if not api_key:
         print("  ⚠️ JSEARCH_API_KEY not found in .env! Skipping JSearch.")
         return []
 
-    print(f"Scraping JSearch for {keyword} in {city} (Max Pages: {max_pages})...")
+    print(f"  Scraping JSearch for {keyword} in {city} (Max Pages: {max_pages})...")
     url = "https://jsearch.p.rapidapi.com/search"
     headers = {
         "x-rapidapi-key": api_key,
@@ -168,7 +162,7 @@ def scrape_jsearch_fast(keyword: str, city: str, date_filter: str = "3days", max
     # Format query for JSearch
     query = f"{keyword} in {city}"
     
-    # Map '3days' to RapidAPI's expected string
+    # Map '3days' to RapidAPI's expected string format
     date_map = {"3days": "3days", "week": "week", "month": "month"}
     date_posted = date_map.get(date_filter.lower().strip(), "month")
 
@@ -197,7 +191,7 @@ def scrape_jsearch_fast(keyword: str, city: str, date_filter: str = "3days", max
                     "employer": job.get("employer_name", ""),
                     "location": job.get("job_city") or city,
                     "apply_link": link,
-                    "skills": [], # We let the DB matcher handle skills via text blob usually
+                    "skills": [], # The DB matcher/frontend handles skills via text blob
                 })
             print(f"  ✅ JSearch: Found {len(jobs)} jobs!")
             
@@ -210,6 +204,7 @@ def scrape_jsearch_fast(keyword: str, city: str, date_filter: str = "3days", max
         print(f"  ⚠️ JSearch Network Error: {e}")
 
     return jobs
+# ───────────────────────────────────────────────────────────────────────────────
 
 
 if __name__ == "__main__":
@@ -225,7 +220,7 @@ if __name__ == "__main__":
 
             try:
                 print(f"  Scraping Internshala...")
-                internshala_jobs = scrape_internshala_fast(keyword, city, "3days",max_pages=5)
+                internshala_jobs = scrape_internshala_fast(keyword, city, "3days",max_pages=1)
                 save_jobs_to_tidb(internshala_jobs, "Internshala", domain_tag)
                 total_saved += len(internshala_jobs)
             except Exception as e:
@@ -238,7 +233,8 @@ if __name__ == "__main__":
                 total_saved += len(indeed_jobs)
             except Exception as e:
                 print(f"  ❌ Indeed error: {e}")
-                
+
+            # ── ADDED: JSearch Try/Except Block ──────────────────────────────────
             try:
                 print(f"  Scraping JSearch...")
                 jsearch_jobs = scrape_jsearch_fast(keyword, city, "3days", max_pages=1)
@@ -246,5 +242,6 @@ if __name__ == "__main__":
                 total_saved += len(jsearch_jobs)
             except Exception as e:
                 print(f"  ❌ JSearch error: {e}")
+            # ─────────────────────────────────────────────────────────────────────
 
     print(f"\n🎉 Background scraping complete! ~{total_saved} jobs processed.")
