@@ -1,7 +1,7 @@
 name: Background Scrapers
 on:
   schedule:
-    - cron: '0 */12 * * *' # Runs every 12 hours
+    - cron: '0 0 */2 * *' # Runs every 2 days(48 hours)
   workflow_dispatch: # Allows you to trigger it manually
 
 jobs:
