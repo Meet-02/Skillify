@@ -269,7 +269,13 @@ def _batch_score_jobs(
     except Exception as e:
         print(f"  ⚠️ TF-IDF error: {e}")
 
-    # Structured scoring loop
+    # ── Structured scoring loop ──────────────────────────────────────────────
+    # Also runs LIME per-job to populate semantic_keyword_impact.
+    # LIME is lightweight here because job texts are short (title + skills only)
+    # and we use num_samples=200 to keep latency acceptable on Render.
+    from app.services.scoring_model import explain_semantic_match
+
+    # ── Pass 1: score ALL jobs first ─────────────────────────────────────────
     for i, job in enumerate(jobs):
         try:
             struct, missing = structured_skill_score(user_profile, job_profiles[i], WEIGHTS)
@@ -277,9 +283,37 @@ def _batch_score_jobs(
             job["match_score"]    = round(final, 1)
             job["gap_severity"]   = gap_severity(final)
             job["missing_skills"] = missing
+            job["semantic_keyword_impact"] = {}   # default — filled in pass 2
         except Exception as e:
             print(f"  ⚠️ Score error job {i}: {e}")
-            job.update({"match_score": 0.0, "gap_severity": "N/A", "missing_skills": {}})
+            job.update({
+                "match_score": 0.0, "gap_severity": "N/A",
+                "missing_skills": {}, "semantic_keyword_impact": {}
+            })
+
+    # ── Pass 2: LIME only on top-15 jobs by match_score ──────────────────────
+    # Running LIME on all 96 jobs would take ~29s on Render (96 × 0.3s).
+    # Users only read the top cards, so explaining the best 15 is sufficient.
+    # 15 × 0.3s ≈ 4-5s — acceptable on Render's free tier.
+    if resume_text and len(resume_text.split()) >= 3:
+        ranked = sorted(range(len(jobs)), key=lambda i: jobs[i].get("match_score", 0), reverse=True)
+        top_indices = set(ranked[:15])
+
+        print(f"  🔬 Running LIME on top 15 jobs (of {len(jobs)})...")
+        _lime_start = time.time()
+        explained = 0
+        for i in top_indices:
+            try:
+                jobs[i]["semantic_keyword_impact"] = explain_semantic_match(
+                    resume_text  = resume_text,
+                    job_text     = job_texts[i],
+                    num_features = 8,
+                    num_samples  = 200,
+                )
+                explained += 1
+            except Exception as e:
+                print(f"  ⚠️ LIME error job {i}: {e}")
+        print(f"  🔬 LIME done: {explained} jobs explained in {time.time()-_lime_start:.1f}s")
 
     return jobs
 

@@ -652,11 +652,15 @@ async def get_internships(
     for job in jobs:
         # Add has_profile flag for the frontend UI
         job["has_profile"] = bool(user_skills_list)
-        # Strip heavy fields
+        # Strip heavy fields that the frontend doesn't need
         job.pop("description", None)
-        # Cap skills shown
+        # Cap skills shown to keep payload small
         if isinstance(job.get("skills"), list):
             job["skills"] = job["skills"][:12]
+        # Ensure LIME and missing_skills keys are always present
+        # (frontend checks for these — never pop them)
+        job.setdefault("semantic_keyword_impact", {})
+        job.setdefault("missing_skills", {})
 
     print(f"  📤 Returning {len(jobs)} jobs to frontend")
     print(f"{'='*60}\n")
@@ -737,9 +741,11 @@ async def get_jobs_unified(
     # Strip heavy fields before sending to frontend
     for job in result["jobs"]:
         job.pop("description", None)
-        job.pop("missing_skills", None)
+        # Do NOT pop missing_skills or semantic_keyword_impact — frontend needs them
         if isinstance(job.get("skills"), list):
             job["skills"] = job["skills"][:12]   # cap skills shown
+        job.setdefault("semantic_keyword_impact", {})
+        job.setdefault("missing_skills", {})
 
     return {
         "jobs":        result["jobs"],
