@@ -210,7 +210,11 @@ def _fetch_jobs_from_db(domain: str, city: str, date_filter: str = "month") -> l
         print(f"  🗄️ TiDB Database → Found {len(jobs)} saved jobs (last {days} days).")
         return jobs
     except Exception as e:
-        print(f"  ⚠️ Database fetch error: {e}")
+        err_str = str(e)
+        if "TIDB_HOST" in err_str or "Can't connect" in err_str or "NoneType" in err_str or "host" in err_str.lower():
+            print(f"  ⚠️ TiDB connection failed (is TIDB_HOST set in .env?): {e}")
+        else:
+            print(f"  ⚠️ Database fetch error: {e}")
         return []
 
 
@@ -418,8 +422,18 @@ async def aggregate_jobs(
 ) -> dict[str, Any]:
 
     IS_RENDER = os.getenv("RENDER") == "true"
-    if IS_RENDER or sources is None:
-        sources = ["database", "jsearch"]
+    if sources is None:
+        if IS_RENDER:
+            # Production: DB + JSearch only (no Chrome/Selenium available)
+            sources = ["database", "jsearch"]
+        else:
+            # Local dev: try DB first, fall back to jsearch
+            # Internshala/Indeed scrapers use Selenium — only add if Chrome is installed
+            import shutil
+            has_chrome = shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromedriver")
+            sources = ["database", "jsearch"]
+            if has_chrome:
+                sources = ["database", "internshala", "jsearch"]
     if IS_RENDER:
         print("⚠️ [PRODUCTION MODE] Disabling Selenium scrapers to prevent RAM crash.")
 

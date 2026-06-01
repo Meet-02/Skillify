@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,14 +9,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background: var(--bg-body); }
- 
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-body);
+        }
+
         .intern-page {
             max-width: 1100px;
             margin: 0 auto;
             padding: 6rem 1.5rem 4rem;
         }
- 
+
         /* ── Hero ── */
         .intern-hero {
             background: var(--gradient-primary);
@@ -26,9 +30,18 @@
             margin-bottom: 2rem;
             box-shadow: var(--shadow-lg);
         }
-        .intern-hero h1 { font-size: 2rem; font-weight: 800; margin-bottom: .4rem; }
-        .intern-hero p  { opacity: .85; font-size: 1rem; }
- 
+
+        .intern-hero h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: .4rem;
+        }
+
+        .intern-hero p {
+            opacity: .85;
+            font-size: 1rem;
+        }
+
         /* ── Filter bar ── */
         .filter-bar {
             background: #fff;
@@ -41,6 +54,7 @@
             box-shadow: var(--shadow-md);
             margin-bottom: 2rem;
         }
+
         .filter-group {
             display: flex;
             align-items: center;
@@ -48,12 +62,14 @@
             flex: 1;
             min-width: 170px;
         }
+
         .filter-group label {
             font-weight: 600;
             font-size: .82rem;
             color: var(--text-muted);
             white-space: nowrap;
         }
+
         .filter-group select {
             flex: 1;
             padding: .55rem .9rem;
@@ -67,11 +83,16 @@
             outline: none;
             transition: border-color .2s;
         }
-        .filter-group select:focus { border-color: var(--primary); }
- 
+
+        .filter-group select:focus {
+            border-color: var(--primary);
+        }
+
         /* Domain select gets a slightly wider min */
-        #domainSelect { min-width: 160px; }
- 
+        #domainSelect {
+            min-width: 160px;
+        }
+
         #searchBtn {
             padding: .65rem 1.75rem;
             font-size: .95rem;
@@ -84,21 +105,35 @@
             display: flex;
             align-items: center;
             gap: .45rem;
-            box-shadow: 0 4px 14px rgba(14,165,233,.35);
+            box-shadow: 0 4px 14px rgba(14, 165, 233, .35);
             transition: transform .15s, box-shadow .15s;
             white-space: nowrap;
         }
-        #searchBtn:hover  { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(14,165,233,.3); }
-        #searchBtn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
- 
+
+        #searchBtn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(14, 165, 233, .3);
+        }
+
+        #searchBtn:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         /* ── Active domain pill ── */
         .domain-pill {
-            display: inline-flex; align-items: center; gap: .4rem;
-            background: #ede9fe; color: #6d28d9;
-            padding: .28rem .85rem; border-radius: 2rem;
-            font-size: .78rem; font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            background: #ede9fe;
+            color: #6d28d9;
+            padding: .28rem .85rem;
+            border-radius: 2rem;
+            font-size: .78rem;
+            font-weight: 700;
         }
- 
+
         /* ── Results meta + sort ── */
         .results-meta {
             display: flex;
@@ -108,27 +143,55 @@
             flex-wrap: wrap;
             gap: .5rem;
         }
-        .results-meta span { font-size: .9rem; color: var(--text-muted); font-weight: 500; }
-        .badge-city {
-            background: #e0f2fe; color: #0284c7;
-            padding: .25rem .75rem; border-radius: 2rem;
-            font-size: .8rem; font-weight: 700;
+
+        .results-meta span {
+            font-size: .9rem;
+            color: var(--text-muted);
+            font-weight: 500;
         }
- 
-        .sort-tabs { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+
+        .badge-city {
+            background: #e0f2fe;
+            color: #0284c7;
+            padding: .25rem .75rem;
+            border-radius: 2rem;
+            font-size: .8rem;
+            font-weight: 700;
+        }
+
+        .sort-tabs {
+            display: flex;
+            gap: .5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
         .sort-tab {
-            padding: .4rem 1rem; border-radius: 2rem;
-            font-size: .82rem; font-weight: 600; cursor: pointer;
-            border: 1.5px solid #e2e8f0; background: #fff; color: var(--text-muted);
+            padding: .4rem 1rem;
+            border-radius: 2rem;
+            font-size: .82rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1.5px solid #e2e8f0;
+            background: #fff;
+            color: var(--text-muted);
             transition: all .15s;
         }
-        .sort-tab.active, .sort-tab:hover {
-            background: var(--primary); color: #fff; border-color: var(--primary);
+
+        .sort-tab.active,
+        .sort-tab:hover {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
         }
- 
+
         /* ── Job cards ── */
-        #jobGrid { display: flex; flex-direction: column; gap: 1.1rem; }
- 
+        #jobGrid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.1rem;
+        }
+
         .job-card {
             background: #fff;
             border-radius: 1rem;
@@ -141,82 +204,201 @@
             align-items: start;
             transition: box-shadow .2s, transform .2s;
         }
-        .job-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
- 
+
+        .job-card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+
         .company-logo {
-            width: 52px; height: 52px;
+            width: 52px;
+            height: 52px;
             border-radius: .65rem;
             object-fit: contain;
             background: #f1f5f9;
             border: 1px solid #e2e8f0;
             padding: 4px;
         }
+
         .logo-placeholder {
-            width: 52px; height: 52px;
+            width: 52px;
+            height: 52px;
             border-radius: .65rem;
-            background: linear-gradient(135deg,#e0f2fe,#ede9fe);
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 800; font-size: 1.2rem; color: var(--primary);
+            background: linear-gradient(135deg, #e0f2fe, #ede9fe);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.2rem;
+            color: var(--primary);
             flex-shrink: 0;
         }
- 
-        .job-title   { font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin-bottom: .2rem; }
-        .job-company { font-size: .88rem;  color: var(--text-muted); margin-bottom: .5rem; }
- 
-        .job-meta { display: flex; flex-wrap: wrap; gap: .45rem; margin-bottom: .65rem; }
+
+        .job-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: .2rem;
+        }
+
+        .job-company {
+            font-size: .88rem;
+            color: var(--text-muted);
+            margin-bottom: .5rem;
+        }
+
+        .job-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .45rem;
+            margin-bottom: .65rem;
+        }
+
         .meta-chip {
-            display: inline-flex; align-items: center; gap: .3rem;
-            padding: .25rem .7rem; border-radius: 2rem;
-            font-size: .76rem; font-weight: 600;
-            background: #f1f5f9; color: var(--text-muted);
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            padding: .25rem .7rem;
+            border-radius: 2rem;
+            font-size: .76rem;
+            font-weight: 600;
+            background: #f1f5f9;
+            color: var(--text-muted);
         }
-        .chip-location { background: #e0f2fe; color: #0284c7; }
-        .chip-type     { background: #ede9fe; color: #7c3aed; }
-        .chip-posted   { background: #f0fdf4; color: #15803d; }
-        .chip-domain   { background: #fef3c7; color: #92400e; }
- 
-        .qualif-row { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .4rem; }
+
+        .chip-location {
+            background: #e0f2fe;
+            color: #0284c7;
+        }
+
+        .chip-type {
+            background: #ede9fe;
+            color: #7c3aed;
+        }
+
+        .chip-posted {
+            background: #f0fdf4;
+            color: #15803d;
+        }
+
+        .chip-domain {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .qualif-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .35rem;
+            margin-top: .4rem;
+        }
+
         .qualif-tag {
-            padding: .2rem .55rem; border-radius: .4rem;
-            background: #f8fafc; border: 1px solid #e2e8f0;
-            font-size: .72rem; color: var(--text-muted);
-            max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            padding: .2rem .55rem;
+            border-radius: .4rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            font-size: .72rem;
+            color: var(--text-muted);
+            max-width: 260px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
- 
+
         .no-profile-notice {
-            margin-top: .5rem; padding: .5rem 1rem;
-            background: #fffbeb; border: 1px solid #fde68a; border-radius: .65rem;
-            font-size: .8rem; color: #92400e;
+            margin-top: .5rem;
+            padding: .5rem 1rem;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: .65rem;
+            font-size: .8rem;
+            color: #92400e;
         }
-        .no-profile-notice a { color: var(--primary); font-weight: 600; }
- 
+
+        .no-profile-notice a {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
         /* ── Right column ── */
         .job-right {
-            display: flex; flex-direction: column;
-            align-items: flex-end; gap: .7rem; min-width: 110px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: .7rem;
+            min-width: 110px;
         }
- 
+
         /* Match ring */
-        .match-ring { position: relative; width: 72px; height: 72px; }
-        .match-ring svg { transform: rotate(-90deg); }
-        .match-ring circle { fill: none; stroke-width: 6; stroke-linecap: round; }
-        .ring-bg { stroke: #f1f5f9; }
+        .match-ring {
+            position: relative;
+            width: 72px;
+            height: 72px;
+        }
+
+        .match-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .match-ring circle {
+            fill: none;
+            stroke-width: 6;
+            stroke-linecap: round;
+        }
+
+        .ring-bg {
+            stroke: #f1f5f9;
+        }
+
         .match-text {
-            position: absolute; inset: 0;
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
-        .match-pct   { font-size: .95rem; font-weight: 800; line-height: 1; }
-        .match-label { font-size: .58rem; font-weight: 600; color: var(--text-muted); margin-top: 1px; }
- 
+
+        .match-pct {
+            font-size: .95rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .match-label {
+            font-size: .58rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-top: 1px;
+        }
+
         .gap-badge {
-            font-size: .72rem; font-weight: 700;
-            padding: .22rem .65rem; border-radius: 2rem;
+            font-size: .72rem;
+            font-weight: 700;
+            padding: .22rem .65rem;
+            border-radius: 2rem;
         }
-        .gap-Low    { background: #d1fae5; color: #065f46; }
-        .gap-Medium { background: #fef3c7; color: #92400e; }
-        .gap-High   { background: #fee2e2; color: #991b1b; }
-        .gap-NA     { background: #f1f5f9; color: var(--text-muted); }
+
+        .gap-Low {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .gap-Medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .gap-High {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .gap-NA {
+            background: #f1f5f9;
+            color: var(--text-muted);
+        }
 
         /* ── LIME keyword-impact panel ── */
         .lime-panel {
@@ -227,6 +409,7 @@
             border-radius: .75rem;
             font-size: .76rem;
         }
+
         .lime-panel-title {
             font-weight: 700;
             color: var(--text-muted);
@@ -235,7 +418,13 @@
             align-items: center;
             gap: .3rem;
         }
-        .lime-chips { display: flex; flex-wrap: wrap; gap: .3rem; }
+
+        .lime-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .3rem;
+        }
+
         .lime-chip {
             display: inline-flex;
             align-items: center;
@@ -245,383 +434,438 @@
             font-size: .72rem;
             font-weight: 600;
         }
-        .lime-pos { background: #d1fae5; color: #065f46; }   /* green  = boosts match */
-        .lime-neg { background: #fee2e2; color: #991b1b; }   /* red    = hurts  match */
- 
-        .apply-btn {
-            display: inline-flex; align-items: center; gap: .4rem;
-            padding: .5rem 1.1rem; border-radius: .6rem;
-            background: var(--gradient-primary); color: #fff;
-            font-size: .82rem; font-weight: 700; text-decoration: none;
-            transition: opacity .15s, transform .15s; white-space: nowrap;
+
+        .lime-pos {
+            background: #d1fae5;
+            color: #065f46;
         }
-        .apply-btn:hover { opacity: .9; transform: translateY(-1px); }
- 
+
+        /* green  = boosts match */
+        .lime-neg {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* red    = hurts  match */
+
+        .apply-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            padding: .5rem 1.1rem;
+            border-radius: .6rem;
+            background: var(--gradient-primary);
+            color: #fff;
+            font-size: .82rem;
+            font-weight: 700;
+            text-decoration: none;
+            transition: opacity .15s, transform .15s;
+            white-space: nowrap;
+        }
+
+        .apply-btn:hover {
+            opacity: .9;
+            transform: translateY(-1px);
+        }
+
         /* Skeleton */
         .skeleton-card {
-            background: #fff; border-radius: 1rem; padding: 1.4rem 1.6rem;
-            border: 1.5px solid #f1f5f9; display: flex; gap: 1rem;
+            background: #fff;
+            border-radius: 1rem;
+            padding: 1.4rem 1.6rem;
+            border: 1.5px solid #f1f5f9;
+            display: flex;
+            gap: 1rem;
         }
-        .skel { background: #e2e8f0; border-radius: .5rem; animation: pulse 1.4s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
- 
-        .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
-        .empty-state i { font-size: 3rem; margin-bottom: 1rem; opacity: .4; display: block; }
-        .empty-state h3 { font-size: 1.2rem; margin-bottom: .5rem; }
- 
-        @media(max-width:640px){
-            .job-card { grid-template-columns: 44px 1fr; }
-            .job-right { grid-column: 1/-1; flex-direction: row; flex-wrap: wrap; align-items: center; }
-            .intern-hero h1 { font-size: 1.5rem; }
-            .filter-group { min-width: 140px; }
+
+        .skel {
+            background: #e2e8f0;
+            border-radius: .5rem;
+            animation: pulse 1.4s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .4
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: .4;
+            display: block;
+        }
+
+        .empty-state h3 {
+            font-size: 1.2rem;
+            margin-bottom: .5rem;
+        }
+
+        @media(max-width:640px) {
+            .job-card {
+                grid-template-columns: 44px 1fr;
+            }
+
+            .job-right {
+                grid-column: 1/-1;
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-items: center;
+            }
+
+            .intern-hero h1 {
+                font-size: 1.5rem;
+            }
+
+            .filter-group {
+                min-width: 140px;
+            }
         }
     </style>
 </head>
- 
+
 <body class="dashboard-body">
- 
-<!-- Navbar -->
-<nav class="navbar dashboard-nav">
-    <div class="container nav-container">
-        <a href="/" class="logo">Skillify<span class="dot">.</span></a>
-        <div class="nav-links">
-            <a href="/internships" class="active-nav">Internships</a>
-            <a href="/dashboard">Skills Market</a>
+
+    <!-- Navbar -->
+    <nav class="navbar dashboard-nav">
+        <div class="container nav-container">
+            <a href="/" class="logo">Skillify<span class="dot">.</span></a>
+            <div class="nav-links">
+                <a href="/internships" class="active-nav">Internships</a>
+                <a href="/dashboard">Skills Market</a>
+            </div>
+            <div class="nav-actions">
+                <a href="/profile" class="profile-icon-link" aria-label="Profile"
+                    style="display:flex;flex-direction:column;align-items:center;color:var(--text-main);transition:color .2s;text-decoration:none"
+                    onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-main)'">
+                    <i class="fas fa-user-circle" style="font-size:1.5rem"></i>
+                    <span style="font-size:.75rem;font-weight:600;margin-top:2px">Profile</span>
+                </a>
+            </div>
         </div>
-        <div class="nav-actions">
-            <a href="/profile" class="profile-icon-link" aria-label="Profile"
-               style="display:flex;flex-direction:column;align-items:center;color:var(--text-main);transition:color .2s;text-decoration:none"
-               onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-main)'">
-                <i class="fas fa-user-circle" style="font-size:1.5rem"></i>
-                <span style="font-size:.75rem;font-weight:600;margin-top:2px">Profile</span>
-            </a>
+    </nav>
+
+    <main class="intern-page">
+
+        <!-- Hero -->
+        <div class="intern-hero">
+            <h1><i class="fas fa-briefcase" style="margin-right:.5rem"></i>Find Your Perfect Internship</h1>
+            <p>Live listings from across India — scored against your skills profile</p>
         </div>
-    </div>
-</nav>
- 
-<main class="intern-page">
- 
-    <!-- Hero -->
-    <div class="intern-hero">
-        <h1><i class="fas fa-briefcase" style="margin-right:.5rem"></i>Find Your Perfect Internship</h1>
-        <p>Live listings from across India — scored against your skills profile</p>
-    </div>
- 
-    <!-- Filters -->
-    <div class="filter-bar">
- 
-        <!-- City -->
-        <div class="filter-group">
-            <label><i class="fas fa-map-marker-alt" style="color:var(--primary)"></i>&nbsp;City</label>
-            <select id="citySelect">
-                <option value="Mumbai">Mumbai</option>
-                <option value="Delhi">Delhi</option>
-                <option value="Bangalore">Bangalore</option>
-                <option value="Hyderabad">Hyderabad</option>
-                <option value="Chennai">Chennai</option>
-                <option value="Pune">Pune</option>
-                <option value="Kolkata">Kolkata</option>
-                <option value="Ahmedabad">Ahmedabad</option>
-                <option value="Jaipur">Jaipur</option>
-                <option value="Noida">Noida</option>
-            </select>
+
+        <!-- Filters -->
+        <div class="filter-bar">
+
+            <!-- City -->
+            <div class="filter-group">
+                <label><i class="fas fa-map-marker-alt" style="color:var(--primary)"></i>&nbsp;City</label>
+                <select id="citySelect">
+                    <option value="Mumbai">Mumbai</option>
+                    <option value="Delhi">Delhi</option>
+                    <option value="Bangalore">Bangalore</option>
+                    <option value="Hyderabad">Hyderabad</option>
+                    <option value="Chennai">Chennai</option>
+                    <option value="Pune">Pune</option>
+                    <option value="Kolkata">Kolkata</option>
+                    <option value="Ahmedabad">Ahmedabad</option>
+                    <option value="Jaipur">Jaipur</option>
+                    <option value="Noida">Noida</option>
+                </select>
+            </div>
+
+            <!-- Domain -->
+            <div class="filter-group">
+                <label><i class="fas fa-layer-group" style="color:var(--primary)"></i>&nbsp;Domain</label>
+                <select id="domainSelect">
+                    <option value="">🌐 All Domains</option>
+                    <optgroup label="── Tech ──────────────────">
+                        <option value="software">💻 Software Engineer</option>
+                        <option value="frontend">🖥️ Frontend Developer</option>
+                        <option value="backend">⚙️ Backend Developer</option>
+                        <option value="fullstack">🔄 Full Stack Developer</option>
+                        <option value="android">🤖 Android Developer</option>
+                        <option value="ios">🍎 iOS Developer</option>
+                        <option value="devops">☁️ DevOps / Cloud</option>
+                        <option value="data">📊 Data Science</option>
+                        <option value="ml">🧠 ML / AI Engineer</option>
+                        <option value="dataeng">🔧 Data Engineer</option>
+                        <option value="uiux">🎨 UI / UX Designer</option>
+                        <option value="qa">🧪 QA / Testing</option>
+                        <option value="cyber">🔐 Cybersecurity</option>
+                        <option value="blockchain">⛓️ Blockchain / Web3</option>
+                    </optgroup>
+                    <optgroup label="── Non-Tech ──────────────">
+                        <option value="marketing">📢 Marketing</option>
+                        <option value="finance">💰 Finance & Accounting</option>
+                        <option value="hr">👥 Human Resources</option>
+                        <option value="sales">🤝 Sales & BD</option>
+                        <option value="operations">🏭 Operations</option>
+                        <option value="content">✍️ Content & Media</option>
+                        <option value="design">🖌️ Graphic Design</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <!-- Posted -->
+            <div class="filter-group">
+                <label><i class="fas fa-clock" style="color:var(--primary)"></i>&nbsp;Posted</label>
+                <select id="dateSelect">
+                    <option value="3days">Last 3 Days</option>
+                    <option value="week">Last Week</option>
+                </select>
+            </div>
+
+            <button id="searchBtn" onclick="fetchInternships()">
+                <i class="fas fa-search"></i> Search
+            </button>
         </div>
- 
-        <!-- Domain -->
-        <div class="filter-group">
-            <label><i class="fas fa-layer-group" style="color:var(--primary)"></i>&nbsp;Domain</label>
-            <select id="domainSelect">
-                <option value="">🌐 All Domains</option>
-                <optgroup label="── Tech ──────────────────">
-                <option value="software">💻 Software Engineer</option>
-                <option value="frontend">🖥️ Frontend Developer</option>
-                <option value="backend">⚙️ Backend Developer</option>
-                <option value="fullstack">🔄 Full Stack Developer</option>
-                <option value="android">🤖 Android Developer</option>
-                <option value="ios">🍎 iOS Developer</option>
-                <option value="devops">☁️ DevOps / Cloud</option>
-                <option value="data">📊 Data Science</option>
-                <option value="ml">🧠 ML / AI Engineer</option>
-                <option value="dataeng">🔧 Data Engineer</option>
-                <option value="uiux">🎨 UI / UX Designer</option>
-                <option value="qa">🧪 QA / Testing</option>
-                <option value="cyber">🔐 Cybersecurity</option>
-                <option value="blockchain">⛓️ Blockchain / Web3</option>
-                </optgroup>
-                <optgroup label="── Non-Tech ──────────────">
-                <option value="marketing">📢 Marketing</option>
-                <option value="finance">💰 Finance & Accounting</option>
-                <option value="hr">👥 Human Resources</option>
-                <option value="sales">🤝 Sales & BD</option>
-                <option value="operations">🏭 Operations</option>
-                <option value="content">✍️ Content & Media</option>
-                <option value="design">🖌️ Graphic Design</option>
-                </optgroup>
-            </select>
+
+        <!-- Results meta -->
+        <div class="results-meta" id="resultsMeta" style="display:none">
+            <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+                <span id="resultsCount"></span>
+                <span class="badge-city" id="cityBadge"></span>
+                <span class="domain-pill" id="domainBadge" style="display:none">
+                    <i class="fas fa-layer-group"></i>
+                    <span id="domainBadgeText"></span>
+                </span>
+            </div>
         </div>
- 
-        <!-- Posted -->
-        <div class="filter-group">
-            <label><i class="fas fa-clock" style="color:var(--primary)"></i>&nbsp;Posted</label>
-            <select id="dateSelect">
-                <option value="3days">Last 3 Days</option>
-                <option value="week">Last Week</option>
-            </select>
+
+        <!-- Sort tabs -->
+        <div class="sort-tabs" id="sortTabs" style="display:none">
+            <button class="sort-tab active" id="tabMatch" onclick="sortJobs('match',this)">
+                <i class="fas fa-percentage"></i> Best Match
+            </button>
+            <button class="sort-tab" id="tabRecent" onclick="sortJobs('recent',this)">
+                <i class="fas fa-clock"></i> Most Recent
+            </button>
+            <button class="sort-tab" id="tabAlpha" onclick="sortJobs('alpha',this)">
+                <i class="fas fa-sort-alpha-down"></i> A–Z
+            </button>
         </div>
- 
-        <button id="searchBtn" onclick="fetchInternships()">
-            <i class="fas fa-search"></i> Search
-        </button>
-    </div>
- 
-    <!-- Results meta -->
-    <div class="results-meta" id="resultsMeta" style="display:none">
-        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
-            <span id="resultsCount"></span>
-            <span class="badge-city" id="cityBadge"></span>
-            <span class="domain-pill" id="domainBadge" style="display:none">
-                <i class="fas fa-layer-group"></i>
-                <span id="domainBadgeText"></span>
-            </span>
-        </div>
-    </div>
- 
-    <!-- Sort tabs -->
-    <div class="sort-tabs" id="sortTabs" style="display:none">
-        <button class="sort-tab active" id="tabMatch" onclick="sortJobs('match',this)">
-            <i class="fas fa-percentage"></i> Best Match
-        </button>
-        <button class="sort-tab" id="tabRecent" onclick="sortJobs('recent',this)">
-            <i class="fas fa-clock"></i> Most Recent
-        </button>
-        <button class="sort-tab" id="tabAlpha" onclick="sortJobs('alpha',this)">
-            <i class="fas fa-sort-alpha-down"></i> A–Z
-        </button>
-    </div>
- 
-    <!-- Job Grid -->
-    <div id="jobGrid"></div>
- 
-</main>
- 
-<script>
-let allJobs = [];
- 
-/* ── Domain label map ── */
-const DOMAIN_LABELS = {
-    '':           '🌐 All Domains',
-    // Tech
-    'software':   '💻 Software Engineer',
-    'frontend':   '🖥️ Frontend Developer',
-    'backend':    '⚙️ Backend Developer',
-    'fullstack':  '🔄 Full Stack Developer',
-    'android':    '🤖 Android Developer',
-    'ios':        '🍎 iOS Developer',
-    'devops':     '☁️ DevOps / Cloud',
-    'data':       '📊 Data Science',
-    'ml':         '🧠 ML / AI Engineer',
-    'dataeng':    '🔧 Data Engineer',
-    'uiux':       '🎨 UI / UX Designer',
-    'qa':         '🧪 QA / Testing',
-    'cyber':      '🔐 Cybersecurity',
-    'blockchain': '⛓️ Blockchain / Web3',
-    // Non-Tech
-    'marketing':  '📢 Marketing',
-    'finance':    '💰 Finance & Accounting',
-    'hr':         '👥 Human Resources',
-    'sales':      '🤝 Sales & BD',
-    'operations': '🏭 Operations',
-    'content':    '✍️ Content & Media',
-    'design':     '🖌️ Graphic Design',
-};
- 
-/* ── Init ── */
-/* ── Updated Init with Persistence ── */
-(function init() {
-    // 1. Load saved filter preferences
-    const savedCity   = localStorage.getItem('skillify_city');
-    const savedDomain = localStorage.getItem('skillify_domain');
-    const savedDate   = localStorage.getItem('skillify_date');
-    if (savedCity)   document.getElementById('citySelect').value   = savedCity;
-    if (savedDomain) document.getElementById('domainSelect').value = savedDomain;
-    if (savedDate)   document.getElementById('dateSelect').value   = savedDate;
 
-    // 2. Check if we have previously searched jobs in this session
-    const cachedJobs = sessionStorage.getItem('last_search_results');
-    if (cachedJobs) {
-        console.log("Restoring previous search results...");
-        allJobs = JSON.parse(cachedJobs);
-        
-        // Show the results UI components
-        document.getElementById('resultsMeta').style.display = 'flex';
-        document.getElementById('sortTabs').style.display = 'flex';
-        document.getElementById('resultsCount').textContent = 
-            `${allJobs.length} internship${allJobs.length !== 1 ? 's' : ''} restored`;
-        
-        renderJobs();
-    }
-    // Note: fetchInternships() is NOT called here, preventing auto-start on login.
-})();
+        <!-- Job Grid -->
+        <div id="jobGrid"></div>
 
-/* ── Updated Fetch with Saving ── */
-async function fetchInternships() {
-    const city   = document.getElementById('citySelect').value;
-    const domain = document.getElementById('domainSelect').value;
-    const filter = document.getElementById('dateSelect').value;
-    const btn    = document.getElementById('searchBtn');
+    </main>
 
-    localStorage.setItem('skillify_city', city);
-    localStorage.setItem('skillify_domain', domain);
-    localStorage.setItem('skillify_date', filter);
+    <script>
+        let allJobs = [];
 
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching…';
+        /* ── Domain label map ── */
+        const DOMAIN_LABELS = {
+            '': '🌐 All Domains',
+            // Tech
+            'software': '💻 Software Engineer',
+            'frontend': '🖥️ Frontend Developer',
+            'backend': '⚙️ Backend Developer',
+            'fullstack': '🔄 Full Stack Developer',
+            'android': '🤖 Android Developer',
+            'ios': '🍎 iOS Developer',
+            'devops': '☁️ DevOps / Cloud',
+            'data': '📊 Data Science',
+            'ml': '🧠 ML / AI Engineer',
+            'dataeng': '🔧 Data Engineer',
+            'uiux': '🎨 UI / UX Designer',
+            'qa': '🧪 QA / Testing',
+            'cyber': '🔐 Cybersecurity',
+            'blockchain': '⛓️ Blockchain / Web3',
+            // Non-Tech
+            'marketing': '📢 Marketing',
+            'finance': '💰 Finance & Accounting',
+            'hr': '👥 Human Resources',
+            'sales': '🤝 Sales & BD',
+            'operations': '🏭 Operations',
+            'content': '✍️ Content & Media',
+            'design': '🖌️ Graphic Design',
+        };
 
-    document.getElementById('resultsMeta').style.display = 'none';
-    document.getElementById('sortTabs').style.display = 'none';
-    showSkeletons();
+        /* ── Init ── */
+        /* ── Updated Init with Persistence ── */
+        (function init() {
+            // 1. Load saved filter preferences
+            const savedCity = localStorage.getItem('skillify_city');
+            const savedDomain = localStorage.getItem('skillify_domain');
+            const savedDate = localStorage.getItem('skillify_date');
+            if (savedCity) document.getElementById('citySelect').value = savedCity;
+            if (savedDomain) document.getElementById('domainSelect').value = savedDomain;
+            if (savedDate) document.getElementById('dateSelect').value = savedDate;
 
-    try {
-        const url = `/api/internships?city=${encodeURIComponent(city)}&date_filter=${filter}&domain=${encodeURIComponent(domain)}`;
-        const res  = await fetch(url);
-        const data = await res.json();
+            // 2. Check if we have previously searched jobs in this session
+            const cachedJobs = sessionStorage.getItem('last_search_results');
+            if (cachedJobs) {
+                console.log("Restoring previous search results...");
+                allJobs = JSON.parse(cachedJobs);
 
-        allJobs = data.jobs || [];
+                // Show the results UI components
+                document.getElementById('resultsMeta').style.display = 'flex';
+                document.getElementById('sortTabs').style.display = 'flex';
+                document.getElementById('resultsCount').textContent =
+                    `${allJobs.length} internship${allJobs.length !== 1 ? 's' : ''} restored`;
 
-        // SAVE the results to sessionStorage so they persist across nav clicks
-        sessionStorage.setItem('last_search_results', JSON.stringify(allJobs));
+                renderJobs();
+            }
+            // Note: fetchInternships() is NOT called here, preventing auto-start on login.
+        })();
 
-        renderJobs();
+        /* ── Updated Fetch with Saving ── */
+        async function fetchInternships() {
+            const city = document.getElementById('citySelect').value;
+            const domain = document.getElementById('domainSelect').value;
+            const filter = document.getElementById('dateSelect').value;
+            const btn = document.getElementById('searchBtn');
 
-        document.getElementById('resultsMeta').style.display = 'flex';
-        document.getElementById('resultsCount').textContent = `${allJobs.length} internships and full time jobs found`;
-        document.getElementById('cityBadge').textContent = `📍 ${data.city}`;
-        if (allJobs.length) document.getElementById('sortTabs').style.display = 'flex';
+            localStorage.setItem('skillify_city', city);
+            localStorage.setItem('skillify_domain', domain);
+            localStorage.setItem('skillify_date', filter);
 
-    } catch(e) {
-        document.getElementById('jobGrid').innerHTML = `<div class="empty-state">...error...</div>`;
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-search"></i> Search';
-    }
-}
- 
-/* ── Sort ── */
-function sortJobs(by, el) {
-    document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
-    el.classList.add('active');
- 
-    if (by === 'match') {
-        allJobs.sort((a, b) => b.match_score - a.match_score);
-    } else if (by === 'recent') {
-        allJobs.sort((a, b) => {
-            const da = a.posted_at ? new Date(a.posted_at) : 0;
-            const db = b.posted_at ? new Date(b.posted_at) : 0;
-            return db - da;
-        });
-    } else if (by === 'alpha') {
-        allJobs.sort((a, b) =>
-            (a.title || '').localeCompare(b.title || '')
-        );
-    }
-    renderJobs();
-}
- 
-/* ── Render ── */
-function renderJobs() {
-    const grid = document.getElementById('jobGrid');
-    if (!allJobs.length) {
-        grid.innerHTML = `
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Searching…';
+
+            document.getElementById('resultsMeta').style.display = 'none';
+            document.getElementById('sortTabs').style.display = 'none';
+            showSkeletons();
+
+            try {
+                const url = `/api/internships?city=${encodeURIComponent(city)}&date_filter=${filter}&domain=${encodeURIComponent(domain)}`;
+                const res = await fetch(url);
+                if (!res.ok) {
+                    let errMsg = `HTTP ${res.status}`;
+                    try { const errData = await res.json(); errMsg += ': ' + (errData.error || errData.detail || ''); } catch { }
+                    throw new Error(errMsg);
+                }
+                const data = await res.json();
+
+                allJobs = data.jobs || [];
+
+                // SAVE the results to sessionStorage so they persist across nav clicks
+                sessionStorage.setItem('last_search_results', JSON.stringify(allJobs));
+
+                renderJobs();
+
+                document.getElementById('resultsMeta').style.display = 'flex';
+                document.getElementById('resultsCount').textContent = `${allJobs.length} internships and full time jobs found`;
+                document.getElementById('cityBadge').textContent = `📍 ${data.city}`;
+                if (allJobs.length) document.getElementById('sortTabs').style.display = 'flex';
+
+            } catch (e) {
+                console.error('❌ /api/internships fetch failed:', e);
+                document.getElementById('jobGrid').innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-exclamation-triangle" style="color:#ef4444"></i>
+                <h3>Something went wrong</h3>
+                <p style="font-size:.85rem;margin-top:.5rem;color:#ef4444;font-family:monospace">${e.message || e}</p>
+                <p style="margin-top:.75rem">Check your terminal for the full error, or try again.</p>
+            </div>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-search"></i> Search';
+            }
+        }
+
+        /* ── Sort ── */
+        function sortJobs(by, el) {
+            document.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+
+            if (by === 'match') {
+                allJobs.sort((a, b) => b.match_score - a.match_score);
+            } else if (by === 'recent') {
+                allJobs.sort((a, b) => {
+                    const da = a.posted_at ? new Date(a.posted_at) : 0;
+                    const db = b.posted_at ? new Date(b.posted_at) : 0;
+                    return db - da;
+                });
+            } else if (by === 'alpha') {
+                allJobs.sort((a, b) =>
+                    (a.title || '').localeCompare(b.title || '')
+                );
+            }
+            renderJobs();
+        }
+
+        /* ── Render ── */
+        function renderJobs() {
+            const grid = document.getElementById('jobGrid');
+            if (!allJobs.length) {
+                grid.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-search"></i>
                 <h3>No internships found</h3>
                 <p>Try a different city, domain, or expand the date range.</p>
             </div>`;
-        return;
-    }
-    grid.innerHTML = allJobs.map(buildCard).join('');
- 
-    /* Animate SVG rings after DOM paint */
-    requestAnimationFrame(() => {
-        document.querySelectorAll('.match-ring[data-pct]').forEach(el => {
-            const pct = parseFloat(el.dataset.pct) || 0;
-            const C   = 2 * Math.PI * 28;
-            const fg  = el.querySelector('.ring-fg');
-            if (fg) fg.style.strokeDashoffset = C - (pct / 100) * C;
-        });
-    });
-}
- 
-/* ── LIME panel builder ── */
-function buildLimePanel(impact) {
-    // impact: {"python": 0.082, "sales": -0.031, ...}  or {}
-    if (!impact || !Object.keys(impact).length) return '';
+                return;
+            }
+            grid.innerHTML = allJobs.map(buildCard).join('');
 
-    // Sort by absolute weight descending, take top 8
-    const entries = Object.entries(impact)
-        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-        .slice(0, 8);
+            /* Animate SVG rings after DOM paint */
+            requestAnimationFrame(() => {
+                document.querySelectorAll('.match-ring[data-pct]').forEach(el => {
+                    const pct = parseFloat(el.dataset.pct) || 0;
+                    const C = 2 * Math.PI * 28;
+                    const fg = el.querySelector('.ring-fg');
+                    if (fg) fg.style.strokeDashoffset = C - (pct / 100) * C;
+                });
+            });
+        }
 
-    const chips = entries.map(([word, weight]) => {
-        const isPos   = weight >= 0;
-        const cls     = isPos ? 'lime-pos' : 'lime-neg';
-        const icon    = isPos ? '▲' : '▼';
-        const tooltip = `${isPos ? 'Boosts' : 'Reduces'} your semantic match by ${Math.abs(weight * 100).toFixed(1)}%`;
-        return `<span class="lime-chip ${cls}" title="${tooltip}">${icon} ${escHtml(word)}</span>`;
-    }).join('');
 
-    return `
-    <div class="lime-panel">
-        <div class="lime-panel-title">
-            <i class="fas fa-lightbulb" style="color:#f59e0b"></i>
-            Why this score? Key words:
-        </div>
-        <div class="lime-chips">${chips}</div>
-    </div>`;
-}
+        function buildCard(job) {
+            const score = job.match_score || 0;
+            const hasProfile = job.has_profile;
+            const C = 2 * Math.PI * 28;
 
-function buildCard(job) {
-    const score      = job.match_score || 0;
-    const hasProfile = job.has_profile;
-    const C          = 2 * Math.PI * 28;
- 
-    /* ring colour: red → amber → green */
-    let ringColor = '#ef4444';
-    if (score >= 40) ringColor = '#f59e0b';
-    if (score >= 65) ringColor = '#10b981';
- 
-    const logoHtml = job.employer_logo
-        ? `<img class="company-logo" src="${escHtml(job.employer_logo)}" alt="${escHtml(job.employer)}"
-               onerror="this.outerHTML='<div class=\\'logo-placeholder\\'>${escHtml((job.employer||'?')[0].toUpperCase())}</div>'">`
-        : `<div class="logo-placeholder">${escHtml((job.employer||'?')[0].toUpperCase())}</div>`;
- 
-    const gapClass = job.gap_severity === 'N/A' ? 'gap-NA' : `gap-${job.gap_severity}`;
-    const gapLabel = hasProfile
-        ? (job.gap_severity === 'N/A' ? '—' : `${job.gap_severity} Gap`)
-        : 'Upload Resume';
- 
-    const postedStr = job.posted_at ? timeAgo(job.posted_at) : 'Recently';
- 
-    const qualifHtml = (job.qualifications || []).slice(0, 4)
-        .map(q => `<span class="qualif-tag" title="${escHtml(q)}">${escHtml(q)}</span>`)
-        .join('');
- 
-    const missingAll = Object.values(job.missing_skills || {}).flat();
-    const missingHtml = (hasProfile && missingAll.length)
-        ? `<div style="margin-top:.4rem;font-size:.73rem;color:#ef4444;font-weight:500">
+            /* ring colour: red → amber → green */
+            let ringColor = '#ef4444';
+            if (score >= 40) ringColor = '#f59e0b';
+            if (score >= 65) ringColor = '#10b981';
+
+            const logoHtml = job.employer_logo
+                ? `<img class="company-logo" src="${escHtml(job.employer_logo)}" alt="${escHtml(job.employer)}"
+               onerror="this.outerHTML='<div class=\\'logo-placeholder\\'>${escHtml((job.employer || '?')[0].toUpperCase())}</div>'">`
+                : `<div class="logo-placeholder">${escHtml((job.employer || '?')[0].toUpperCase())}</div>`;
+
+            const gapClass = job.gap_severity === 'N/A' ? 'gap-NA' : `gap-${job.gap_severity}`;
+            const gapLabel = hasProfile
+                ? (job.gap_severity === 'N/A' ? '—' : `${job.gap_severity} Gap`)
+                : 'Upload Resume';
+
+            const postedStr = job.posted_at ? timeAgo(job.posted_at) : 'Recently';
+
+            const qualifHtml = (job.qualifications || []).slice(0, 4)
+                .map(q => `<span class="qualif-tag" title="${escHtml(q)}">${escHtml(q)}</span>`)
+                .join('');
+
+            const missingAll = Object.values(job.missing_skills || {}).flat();
+            const missingHtml = (hasProfile && missingAll.length)
+                ? `<div style="margin-top:.4rem;font-size:.73rem;color:#ef4444;font-weight:500">
                <i class="fas fa-exclamation-triangle"></i>
                Missing: ${missingAll.slice(0, 4).map(escHtml).join(', ')}${missingAll.length > 4 ? ' …' : ''}
            </div>`
-        : '';
- 
-    /* score display — always show, even if 0% */
-    const scoreDisplay = hasProfile
-        ? (score > 0 ? score + '%' : '0%')
-        : '—';
-    const ringStroke   = hasProfile ? ringColor : '#e2e8f0';
-    const scoreStyle   = `color:${hasProfile ? ringColor : 'var(--text-muted)'}`;
- 
-    return `
+                : '';
+
+            /* score display — always show, even if 0% */
+            const scoreDisplay = hasProfile
+                ? (score > 0 ? score + '%' : '0%')
+                : '—';
+            const ringStroke = hasProfile ? ringColor : '#e2e8f0';
+            const scoreStyle = `color:${hasProfile ? ringColor : 'var(--text-muted)'}`;
+
+            return `
     <div class="job-card">
         ${logoHtml}
  
@@ -638,8 +882,7 @@ function buildCard(job) {
                 ${job.publisher ? `<span class="meta-chip"><i class="fas fa-external-link-alt"></i>${escHtml(job.publisher)}</span>` : ''}
             </div>
             ${qualifHtml ? `<div class="qualif-row">${qualifHtml}</div>` : ''}
-            ${missingHtml}
-            ${hasProfile && job.semantic_keyword_impact ? buildLimePanel(job.semantic_keyword_impact) : ''}
+            ${hasProfile ? buildMatchIntelligence(job) : ''}
             ${!hasProfile ? `
                 <div class="no-profile-notice">
                     <i class="fas fa-info-circle"></i>
@@ -668,26 +911,26 @@ function buildCard(job) {
             </a>
         </div>
     </div>`;
-}
- 
-/* ── Utils ── */
-function timeAgo(dateStr) {
-    try {
-        const diff = Math.floor((Date.now() - new Date(dateStr)) / 60000);
-        if (diff < 60)   return `${diff}m ago`;
-        if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
-        return `${Math.floor(diff / 1440)}d ago`;
-    } catch { return 'Recently'; }
-}
- 
-function escHtml(str) {
-    return String(str ?? '')
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
- 
-function showSkeletons() {
-    document.getElementById('jobGrid').innerHTML = Array(6).fill(0).map(() => `
+        }
+
+        /* ── Utils ── */
+        function timeAgo(dateStr) {
+            try {
+                const diff = Math.floor((Date.now() - new Date(dateStr)) / 60000);
+                if (diff < 60) return `${diff}m ago`;
+                if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+                return `${Math.floor(diff / 1440)}d ago`;
+            } catch { return 'Recently'; }
+        }
+
+        function escHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function showSkeletons() {
+            document.getElementById('jobGrid').innerHTML = Array(6).fill(0).map(() => `
         <div class="skeleton-card">
             <div class="skel" style="width:52px;height:52px;border-radius:.65rem;flex-shrink:0"></div>
             <div style="flex:1;display:flex;flex-direction:column;gap:.6rem">
@@ -705,8 +948,306 @@ function showSkeletons() {
                 <div class="skel" style="width:90px;height:2rem;border-radius:.6rem"></div>
             </div>
         </div>`).join('');
-}
-</script>
- 
+        }
+
+        /* ════════════════════════════════════════════════════════════════════════════
+           LIME MATCH INTELLIGENCE WIDGET
+           ════════════════════════════════════════════════════════════════════════════
+           buildMatchIntelligence(job) → HTML string
+           
+           Renders four zones beneath a job card:
+             Zone 1 — Resume Strengths       (green, positive LIME weights)
+             Zone 2 — Score Dilutions        (rose,  negative LIME weights + swap tips)
+             Zone 3 — Missing Core Keywords  (slate, missing_skills checklist)
+             Zone 4 — AI Next Step Banner    (dynamic colour based on gap_severity)
+           
+           Called from buildCard(job) in internship.html's inline <script>.
+           Designed to degrade gracefully: each zone only renders if its data exists.
+           ════════════════════════════════════════════════════════════════════════════ */
+
+        /**
+         * Picks a contextual swap suggestion for a negative-weight word.
+         * Looks at missing_skills categories to find a relevant replacement.
+         *
+         * Strategy:
+         *   1. Flatten all missing skill arrays.
+         *   2. Check if any missing skill shares a category keyword with the
+         *      negative word (e.g. both are databases, both are frameworks).
+         *   3. Fall back to the first available missing skill, else generic message.
+         *
+         * @param {string}   word          - the out-of-scope word (e.g. "mysql")
+         * @param {Object}   missingSkills - {technical:[...], tools:[...], soft:[...]}
+         * @returns {string} suggestion sentence
+         */
+        function _getSwapSuggestion(word, missingSkills) {
+            // Flatten all missing skills from all categories
+            const allMissing = Object.values(missingSkills || {}).flat().filter(Boolean);
+
+            if (!allMissing.length) {
+                return `The job profile doesn't mention "${word}". Consider replacing it with skills specifically listed in the job description to sharpen your vector alignment.`;
+            }
+
+            // Heuristic category buckets for matching related terms
+            const dbTerms = ['sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'cassandra', 'sqlite', 'database', 'dynamodb', 'firebase', 'supabase', 'nosql'];
+            const frameTerms = ['react', 'vue', 'angular', 'django', 'flask', 'fastapi', 'express', 'spring', 'laravel', 'rails', 'nextjs', 'nuxt', 'svelte'];
+            const cloudTerms = ['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform', 'heroku', 'vercel', 'netlify'];
+            const langTerms = ['python', 'javascript', 'typescript', 'java', 'go', 'rust', 'c++', 'c#', 'php', 'ruby', 'swift', 'kotlin'];
+            const softTerms = ['communication', 'leadership', 'teamwork', 'management', 'collaboration', 'presentation'];
+
+            const buckets = [dbTerms, frameTerms, cloudTerms, langTerms, softTerms];
+            const w = word.toLowerCase();
+
+            // Find which bucket the negative word belongs to
+            const wordBucket = buckets.find(b => b.some(t => w.includes(t) || t.includes(w)));
+
+            if (wordBucket) {
+                // Try to find a missing skill in the same bucket
+                const sameCategoryMissing = allMissing.find(ms =>
+                    wordBucket.some(t => ms.toLowerCase().includes(t) || t.includes(ms.toLowerCase()))
+                );
+                if (sameCategoryMissing) {
+                    return `The job profile doesn't request "${word}"; they're looking for <strong>${sameCategoryMissing}</strong>. Swapping or supplementing with this will directly boost your vector alignment.`;
+                }
+            }
+
+            // Fall back to the first missing skill as a generic recommendation
+            const suggestion = allMissing[0];
+            return `The job profile doesn't mention "${word}". The employer is specifically looking for <strong>${suggestion}</strong>. Consider incorporating their requested keywords to improve match.`;
+        }
+
+
+        /**
+         * Renders the full LIME Match Intelligence widget for one job card.
+         *
+         * @param {Object} job - the full job object from the API response
+         * @returns {string}   - HTML string (empty string if no LIME data + no missing skills)
+         */
+        function buildMatchIntelligence(job) {
+            const impact = job.semantic_keyword_impact || {};
+            const missingSkills = job.missing_skills || {};
+            const severity = job.gap_severity || 'High';
+
+            const impactEntries = Object.entries(impact);
+            const allMissing = Object.values(missingSkills).flat().filter(Boolean);
+
+            // Don't render widget at all if there's nothing meaningful to show
+            if (!impactEntries.length && !allMissing.length) return '';
+
+            // ── Split LIME entries into positive and negative ───────────────────────
+            const positives = impactEntries
+                .filter(([, w]) => w > 0)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 6);
+
+            const negatives = impactEntries
+                .filter(([, w]) => w < 0)
+                .sort((a, b) => a[1] - b[1])   // most negative first
+                .slice(0, 5);
+
+            // ── Zone 1: Resume Strengths ────────────────────────────────────────────
+            let zone1Html = '';
+            if (positives.length) {
+                const chips = positives.map(([word, weight]) => {
+                    const pct = (Math.abs(weight) * 100).toFixed(1);
+                    return `<span class="ski-chip ski-strength" title="Boosts semantic match by ${pct}%">
+                        <span class="ski-chip-icon">▲</span>${escHtml(word)}
+                        <span class="ski-chip-pct">+${pct}%</span>
+                    </span>`;
+                }).join('');
+
+                zone1Html = `
+        <div class="ski-zone ski-zone--strength">
+            <div class="ski-zone-header">
+                <span class="ski-zone-icon">✅</span>
+                <div>
+                    <div class="ski-zone-title">Your Resume Strengths</div>
+                    <div class="ski-zone-sub">These keywords align with the job description and are driving your score up.</div>
+                </div>
+            </div>
+            <div class="ski-chips">${chips}</div>
+        </div>`;
+            }
+
+            // ── Zone 2: Score Dilutions ─────────────────────────────────────────────
+            let zone2Html = '';
+            if (negatives.length) {
+                const chips = negatives.map(([word, weight]) => {
+                    const pct = (Math.abs(weight) * 100).toFixed(1);
+                    const suggestion = _getSwapSuggestion(word, missingSkills);
+                    // Tooltip uses data-attribute so we can apply rich CSS styling
+                    return `<span class="ski-chip ski-dilution ski-tooltip-trigger"
+                         data-tip="Impact: -${pct}% (Out of Scope). Recommendation: ${suggestion}"
+                         title="Impact: -${pct}% — hover for swap tip">
+                        <span class="ski-chip-icon">▼</span>${escHtml(word)}
+                        <span class="ski-chip-pct">-${pct}%</span>
+                    </span>`;
+                }).join('');
+
+                zone2Html = `
+        <div class="ski-zone ski-zone--dilution">
+            <div class="ski-zone-header">
+                <span class="ski-zone-icon">⚠️</span>
+                <div>
+                    <div class="ski-zone-title">Score Dilution / Out of Scope</div>
+                    <div class="ski-zone-sub">These words pull your semantic match down — the employer didn't mention them, diluting your core vector focus.</div>
+                </div>
+            </div>
+            <div class="ski-chips">${chips}</div>
+        </div>`;
+            }
+
+            // ── Zone 3: Missing Core Keywords checklist ─────────────────────────────
+            let zone3Html = '';
+            if (allMissing.length) {
+                // Flatten with category labels for context
+                const items = [];
+                const catLabels = { technical: 'Technical', tools: 'Tool', soft: 'Soft Skill' };
+                for (const [cat, skills] of Object.entries(missingSkills)) {
+                    (skills || []).forEach(skill => {
+                        if (skill) items.push({ skill, cat, label: catLabels[cat] || cat });
+                    });
+                }
+
+                const checkItems = items.map((item, idx) => {
+                    const uid = `ski-check-${Math.random().toString(36).slice(2, 8)}-${idx}`;
+                    return `
+            <label class="ski-check-item" for="${uid}">
+                <input type="checkbox" class="ski-check-input" id="${uid}">
+                <span class="ski-check-box"><i class="fas fa-check ski-check-mark"></i></span>
+                <span class="ski-check-label">${escHtml(item.skill)}</span>
+                <span class="ski-check-cat ski-cat-${item.cat}">${item.label}</span>
+            </label>`;
+                }).join('');
+
+                zone3Html = `
+        <div class="ski-zone ski-zone--missing">
+            <div class="ski-zone-header">
+                <span class="ski-zone-icon">➕</span>
+                <div>
+                    <div class="ski-zone-title">Missing Core Keywords</div>
+                    <div class="ski-zone-sub">Add these exact terms from the job description to instantly boost your score. Check them off as you update your resume.</div>
+                </div>
+            </div>
+            <div class="ski-checklist">${checkItems}</div>
+        </div>`;
+            }
+
+            // ── Zone 4: AI Next Step Banner ─────────────────────────────────────────
+            const bannerConfig = {
+                High: {
+                    cls: 'ski-banner--high',
+                    icon: '⚠️',
+                    text: 'Your resume is missing core technical frameworks. Focus on incorporating the Missing Core Keywords listed above to move into the interview tracking tier.'
+                },
+                Medium: {
+                    cls: 'ski-banner--medium',
+                    icon: '⚡',
+                    text: 'You have a solid foundation! Swapping out 2–3 out-of-scope phrases for their exact requested tool alternatives will optimize your match.'
+                },
+                Low: {
+                    cls: 'ski-banner--low',
+                    icon: '🎉',
+                    text: 'Excellent alignment! Your vector profile matches the core parameters perfectly. Proceed with confidence.'
+                }
+            };
+
+            const banner = bannerConfig[severity] || bannerConfig.High;
+            const nextStepLabels = { High: 'Next Step', Medium: 'Next Step', Low: 'Next Step' };
+            const zone4Html = `
+    <div class="ski-banner ${banner.cls}">
+        <span class="ski-banner-icon">${banner.icon}</span>
+        <div class="ski-banner-body">
+            <span class="ski-banner-label">${nextStepLabels[severity] || 'Next Step'}:</span>
+            ${banner.text}
+        </div>
+    </div>`;
+
+            // ── Assemble widget ─────────────────────────────────────────────────────
+            return `
+    <div class="ski-widget">
+        <div class="ski-widget-header">
+            <i class="fas fa-brain ski-widget-icon"></i>
+            <span>Match Intelligence</span>
+        </div>
+        <div class="ski-zones">
+            ${zone1Html}
+            ${zone2Html}
+            ${zone3Html}
+        </div>
+        ${zone4Html}
+    </div>`;
+        }
+
+
+        /* ════════════════════════════════════════════════════════════════════════════
+           CONTEXTUAL SWAP TOOLTIP — rich hover panel for dilution chips
+           
+           Instead of the native title= tooltip (plain text, no HTML),
+           we render a custom floating panel positioned above each ▼ chip.
+           Uses event delegation on #jobGrid so it works after every renderJobs() call.
+           ════════════════════════════════════════════════════════════════════════════ */
+        (function initSwapTooltips() {
+            // One shared tooltip div, repositioned on demand
+            let tip = document.getElementById('ski-global-tip');
+            if (!tip) {
+                tip = document.createElement('div');
+                tip.id = 'ski-global-tip';
+                tip.className = 'ski-global-tip';
+                document.body.appendChild(tip);
+            }
+
+            function showTip(trigger, html) {
+                tip.innerHTML = html;
+                tip.classList.add('ski-global-tip--visible');
+
+                const rect = trigger.getBoundingClientRect();
+                const tipW = tip.offsetWidth || 280;
+                const tipH = tip.offsetHeight || 80;
+                const scrollY = window.scrollY || document.documentElement.scrollTop;
+                const scrollX = window.scrollX || document.documentElement.scrollLeft;
+
+                // Default: above the chip, centred
+                let top = rect.top + scrollY - tipH - 10;
+                let left = rect.left + scrollX + (rect.width / 2) - (tipW / 2);
+
+                // Clamp to viewport
+                if (left < 8) left = 8;
+                if (left + tipW > window.innerWidth - 8) left = window.innerWidth - tipW - 8;
+                if (top < scrollY + 8) top = rect.bottom + scrollY + 10; // flip below
+
+                tip.style.top = `${top}px`;
+                tip.style.left = `${left}px`;
+            }
+
+            function hideTip() {
+                tip.classList.remove('ski-global-tip--visible');
+            }
+
+            // Delegate from document so it works after DOM updates
+            document.addEventListener('mouseover', (e) => {
+                const trigger = e.target.closest('.ski-tooltip-trigger');
+                if (!trigger) return;
+                const rawTip = trigger.dataset.tip || '';
+                if (!rawTip) return;
+                // Convert data-tip to styled HTML: bold the Recommendation label
+                const html = rawTip
+                    .replace(/^(Impact:[^.]+\.)/, '<span class="ski-tip-impact">$1</span>')
+                    .replace(/(Recommendation:)/, '<span class="ski-tip-rec-label">$1</span>');
+                showTip(trigger, html);
+            });
+
+            document.addEventListener('mouseout', (e) => {
+                if (e.target.closest('.ski-tooltip-trigger') && !e.relatedTarget?.closest('.ski-tooltip-trigger')) {
+                    hideTip();
+                }
+            });
+
+            // Also hide on scroll to avoid stale positioning
+            window.addEventListener('scroll', hideTip, { passive: true });
+        })();
+
+    </script>
+
 </body>
+
 </html>
