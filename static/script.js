@@ -383,7 +383,7 @@ function _getSwapSuggestion(word, missingSkills) {
     const allMissing = Object.values(missingSkills || {}).flat().filter(Boolean);
 
     if (!allMissing.length) {
-        return `The job profile doesn't mention "${word}". Consider replacing it with skills specifically listed in the job description to sharpen your vector alignment.`;
+        return `Your resume mentions \"${word}\", but this term does not appear in the job description. Consider replacing it with keywords the employer has specifically requested to strengthen your alignment and improve your overall match score.`;
     }
 
     // Heuristic category buckets for matching related terms
@@ -405,13 +405,13 @@ function _getSwapSuggestion(word, missingSkills) {
             wordBucket.some(t => ms.toLowerCase().includes(t) || t.includes(ms.toLowerCase()))
         );
         if (sameCategoryMissing) {
-            return `The job profile doesn't request "${word}"; they're looking for <strong>${sameCategoryMissing}</strong>. Swapping or supplementing with this will directly boost your vector alignment.`;
+            return `The employer does not mention \"${word}\" in this role. Instead, they are specifically seeking \"${sameCategoryMissing}\". Swapping or supplementing \"${word}\" with \"${sameCategoryMissing}\" on your resume will directly boost your semantic alignment and improve your match score.`;
         }
     }
 
     // Fall back to the first missing skill as a generic recommendation
     const suggestion = allMissing[0];
-    return `The job profile doesn't mention "${word}". The employer is specifically looking for <strong>${suggestion}</strong>. Consider incorporating their requested keywords to improve match.`;
+    return `Your resume includes \"${word}\", which the employer has not listed as a requirement. They are actively seeking \"${suggestion}\" for this position. Incorporating \"${suggestion}\" into your resume while de-emphasizing \"${word}\" will help close the gap and improve your overall match.`;
 }
 
 
@@ -473,9 +473,11 @@ function buildMatchIntelligence(job) {
         const chips = negatives.map(([word, weight]) => {
             const pct        = (Math.abs(weight) * 100).toFixed(1);
             const suggestion = _getSwapSuggestion(word, missingSkills);
-            // Tooltip uses data-attribute so we can apply rich CSS styling
+            // Escape suggestion for safe embedding in data-attribute
+            const safeTip    = `Impact: -${pct}% (Out of Scope). Recommendation: ${suggestion}`
+                .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             return `<span class="ski-chip ski-dilution ski-tooltip-trigger"
-                         data-tip="Impact: -${pct}% (Out of Scope). Recommendation: ${suggestion}"
+                         data-tip="${safeTip}"
                          title="Impact: -${pct}% — hover for swap tip">
                         <span class="ski-chip-icon">▼</span>${escHtml(word)}
                         <span class="ski-chip-pct">-${pct}%</span>
@@ -628,10 +630,16 @@ function buildMatchIntelligence(job) {
         if (!trigger) return;
         const rawTip = trigger.dataset.tip || '';
         if (!rawTip) return;
-        // Convert data-tip to styled HTML: bold the Recommendation label
-        const html = rawTip
-            .replace(/^(Impact:[^.]+\.)/, '<span class="ski-tip-impact">$1</span>')
-            .replace(/(Recommendation:)/, '<span class="ski-tip-rec-label">$1</span>');
+        // Robustly split on the literal ". Recommendation: " boundary
+        let html;
+        const splitIdx = rawTip.indexOf('. Recommendation: ');
+        if (splitIdx !== -1) {
+            const impactPart = rawTip.substring(0, splitIdx + 1); // includes the period
+            const recPart    = rawTip.substring(splitIdx + 18);   // skip ". Recommendation: "
+            html = `<span class="ski-tip-impact">${impactPart}</span><br><span class="ski-tip-rec-label">Recommendation:</span> ${recPart}`;
+        } else {
+            html = rawTip;
+        }
         showTip(trigger, html);
     });
 
