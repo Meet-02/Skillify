@@ -983,18 +983,23 @@
             // Flatten all missing skills from all categories
             const allMissing = Object.values(missingSkills || {}).flat().filter(Boolean);
 
+            // ── Polished default when no missing skills exist ────────────────────────
             if (!allMissing.length) {
-                return `Your resume mentions \"${word}\", but this term does not appear in the job description. Consider replacing it with keywords the employer has specifically requested to strengthen your alignment and improve your overall match score.`;
+                return `Your resume highlights "${word}", but this specific term does not appear anywhere in the job description. To strengthen your alignment, review the posting carefully and replace or supplement "${word}" with the exact keywords and phrases the employer has used. Tailoring your language to mirror their requirements will sharpen your semantic match and help your application stand out.`;
             }
 
-            // Heuristic category buckets for matching related terms
-            const dbTerms = ['sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'cassandra', 'sqlite', 'database', 'dynamodb', 'firebase', 'supabase', 'nosql'];
-            const frameTerms = ['react', 'vue', 'angular', 'django', 'flask', 'fastapi', 'express', 'spring', 'laravel', 'rails', 'nextjs', 'nuxt', 'svelte'];
-            const cloudTerms = ['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform', 'heroku', 'vercel', 'netlify'];
-            const langTerms = ['python', 'javascript', 'typescript', 'java', 'go', 'rust', 'c++', 'c#', 'php', 'ruby', 'swift', 'kotlin'];
-            const softTerms = ['communication', 'leadership', 'teamwork', 'management', 'collaboration', 'presentation'];
+            // ── Expanded heuristic category buckets ──────────────────────────────────
+            const dbTerms = ['sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'cassandra', 'sqlite', 'database', 'dynamodb', 'firebase', 'supabase', 'nosql', 'mariadb', 'oracle'];
+            const frameTerms = ['react', 'vue', 'angular', 'django', 'flask', 'fastapi', 'express', 'spring', 'laravel', 'rails', 'nextjs', 'nuxt', 'svelte', 'gatsby', 'remix', 'node.js'];
+            const cloudTerms = ['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform', 'heroku', 'vercel', 'netlify', 'lambda', 'cloudflare'];
+            const langTerms = ['python', 'javascript', 'typescript', 'java', 'go', 'rust', 'c++', 'c#', 'php', 'ruby', 'swift', 'kotlin', 'r', 'scala', 'perl'];
+            const softTerms = ['communication', 'leadership', 'teamwork', 'management', 'collaboration', 'presentation', 'problem-solving', 'critical thinking', 'adaptability'];
+            const testTerms = ['testing', 'jest', 'mocha', 'selenium', 'cypress', 'pytest', 'junit', 'qa', 'unit test', 'integration test', 'software testing'];
+            const dataTerms = ['pandas', 'numpy', 'scipy', 'matplotlib', 'tableau', 'power bi', 'data analysis', 'data structures', 'statistics', 'analytics', 'excel'];
+            const designTerms = ['figma', 'sketch', 'photoshop', 'illustrator', 'xd', 'ui', 'ux', 'wireframe', 'prototype', 'canva'];
+            const devopsTerms = ['ci/cd', 'jenkins', 'github actions', 'gitlab', 'ansible', 'puppet', 'chef', 'git', 'version control', 'rest api', 'api'];
 
-            const buckets = [dbTerms, frameTerms, cloudTerms, langTerms, softTerms];
+            const buckets = [dbTerms, frameTerms, cloudTerms, langTerms, softTerms, testTerms, dataTerms, designTerms, devopsTerms];
             const w = word.toLowerCase();
 
             // Find which bucket the negative word belongs to
@@ -1006,13 +1011,26 @@
                     wordBucket.some(t => ms.toLowerCase().includes(t) || t.includes(ms.toLowerCase()))
                 );
                 if (sameCategoryMissing) {
-                    return `The employer does not mention \"${word}\" in this role. Instead, they are specifically seeking \"${sameCategoryMissing}\". Swapping or supplementing \"${word}\" with \"${sameCategoryMissing}\" on your resume will directly boost your semantic alignment and improve your match score.`;
+                    return `The employer does not mention "${word}" in this role. Instead, they are specifically looking for "${sameCategoryMissing}", which falls within the same skill category. Replacing or supplementing "${word}" with "${sameCategoryMissing}" on your resume will directly boost your semantic alignment and improve your overall match score for this position.`;
                 }
             }
 
-            // Fall back to the first missing skill as a generic recommendation
+            // ── Contextual fallback: pick the most relevant missing skill ────────────
+            const partialMatch = allMissing.find(ms => {
+                const msLower = ms.toLowerCase();
+                return msLower.split(/\s+/).some(tok => w.includes(tok) || tok.includes(w));
+            });
+
+            if (partialMatch) {
+                return `Your resume features "${word}", but the employer is looking for "${partialMatch}" instead. These terms are related, so updating your resume to specifically reference "${partialMatch}" — rather than the broader "${word}" — will tighten your alignment with the job requirements and contribute to a higher match score.`;
+            }
+
+            // ── Generic fallback using the first missing skill ───────────────────────
             const suggestion = allMissing[0];
-            return `Your resume includes \"${word}\", which the employer has not listed as a requirement. They are actively seeking \"${suggestion}\" for this position. Incorporating \"${suggestion}\" into your resume while de-emphasizing \"${word}\" will help close the gap and improve your overall match.`;
+            const extraSkills = allMissing.length > 1
+                ? ` Additionally, consider adding "${allMissing[1]}" to further strengthen your profile.`
+                : '';
+            return `Your resume includes "${word}", which the employer has not listed as a requirement for this position. They are actively seeking candidates with "${suggestion}" experience.${extraSkills} Incorporating these targeted keywords into your resume while de-emphasizing out-of-scope terms like "${word}" will help close the gap and meaningfully improve your overall match.`;
         }
 
 
@@ -1074,8 +1092,10 @@
                 const chips = negatives.map(([word, weight]) => {
                     const pct = (Math.abs(weight) * 100).toFixed(1);
                     const suggestion = _getSwapSuggestion(word, missingSkills);
-                    // Escape suggestion for safe embedding in data-attribute
-                    const safeTip = `Impact: -${pct}% (Out of Scope). Recommendation: ${suggestion}`
+                    // Use ||| as a safe delimiter that won't appear in natural text
+                    const impactStr = `Impact: -${pct}% (Out of Scope)`;
+                    const recStr    = `Recommendation: ${suggestion}`;
+                    const safeTip = `${impactStr}|||${recStr}`
                         .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     return `<span class="ski-chip ski-dilution ski-tooltip-trigger"
                          data-tip="${safeTip}"
@@ -1231,13 +1251,16 @@
                 if (!trigger) return;
                 const rawTip = trigger.dataset.tip || '';
                 if (!rawTip) return;
-                // Robustly split on the literal ". Recommendation: " boundary
+                // Split on the safe ||| delimiter between Impact and Recommendation
                 let html;
-                const splitIdx = rawTip.indexOf('. Recommendation: ');
-                if (splitIdx !== -1) {
-                    const impactPart = rawTip.substring(0, splitIdx + 1);
-                    const recPart    = rawTip.substring(splitIdx + 18);
-                    html = `<span class="ski-tip-impact">${impactPart}</span><br><span class="ski-tip-rec-label">Recommendation:</span> ${recPart}`;
+                const parts = rawTip.split('|||');
+                if (parts.length >= 2) {
+                    const impactPart = parts[0].trim();
+                    const recPart    = parts.slice(1).join('|||').trim();
+                    const recText = recPart.startsWith('Recommendation: ')
+                        ? recPart.substring('Recommendation: '.length)
+                        : recPart;
+                    html = `<span class="ski-tip-impact">${impactPart}</span><br><span class="ski-tip-rec-label">Recommendation:</span> ${recText}`;
                 } else {
                     html = rawTip;
                 }
